@@ -7,7 +7,7 @@ on:
 
 env:
   DOCKER_EMAIL: digital@pixdata.io
-  DOCKER_USERNAME: pixdata
+  DOCKER_USERNAME: pagewings
   IMAGE_NAME: coderide-potpie-service
   REGISTRY: docker.io
 
