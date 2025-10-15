@@ -5,6 +5,11 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+env:
+  DOCKER_USERNAME: digital@pixdata.io
+  IMAGE_NAME: coderide-potpie-service
+  REGISTRY: docker.io
+
 jobs:
   build-and-push:
     environment: master
@@ -124,6 +129,7 @@ jobs:
         
   health-check:
     runs-on: ubuntu-latest
+    environment: master
     needs: deploy
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     name: Health Check
