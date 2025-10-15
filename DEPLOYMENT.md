@@ -16,8 +16,9 @@ Vai su GitHub → Settings → Secrets and variables → Actions e aggiungi:
 |-------------|--------|-------------|
 | `DOCKER_PASSWORD` | La tua password Docker Hub | Per push automatico immagini |
 | `POTPIE_API_KEY` | La tua chiave Potpie.ai | API key per il servizio |
-| `REDIS_PASSWORD` | Password del tuo Redis | Se il Redis ha password |
 | `KUBE_CONFIG` | Kubeconfig base64 | Configurazione kubectl |
+
+**Nota**: La password Redis viene automaticamente recuperata dal secret `valkey-auth` esistente nel tuo cluster.
 
 ### Come ottenere KUBE_CONFIG:
 ```bash
@@ -90,18 +91,49 @@ curl -X POST http://$EXTERNAL_IP/analyze \
 curl http://$EXTERNAL_IP/status/PROJECT_ID
 ```
 
+## 🔧 Configurazione Valkey TLS
+
+Il servizio è configurato per connettersi al tuo valkey-0 esistente con:
+
+- ✅ **TLS encryption** (porta 6379)
+- ✅ **Password authentication** (dal secret `valkey-auth`)
+- ✅ **Cross-namespace** communication (`valkey` → `default`)
+- ✅ **Service discovery** automatico
+
+### Verifica connessione Valkey:
+```bash
+# Controllare valkey service
+kubectl get svc valkey-service -n valkey
+
+# Test connessione TLS
+kubectl run valkey-test --image=valkey/valkey:7.2 --rm -it -- \
+  valkey-cli -h valkey-service.valkey.svc.cluster.local -p 6379 --tls ping
+```
+
 ## 🔧 Troubleshooting
 
 ### Problemi comuni:
 
-#### 1. Redis connection failed
+#### 1. Valkey TLS connection failed
 ```bash
-# Verificare Redis
-kubectl get pods | grep -E "(redis|valkey)"
-kubectl get svc | grep -E "(redis|valkey)"
+# Verificare valkey pod
+kubectl get pods -n valkey
+kubectl logs valkey-0 -n valkey
 
-# Test connessione Redis
-kubectl run redis-test --image=redis:alpine --rm -it -- redis-cli -h redis-client ping
+# Verificare service
+kubectl get svc valkey-service -n valkey
+
+# Test connessione diretta
+kubectl exec -it valkey-0 -n valkey -- valkey-cli --tls ping
+```
+
+#### 2. Password authentication failed
+```bash
+# Verificare secret valkey
+kubectl get secret valkey-auth -n valkey -o yaml
+
+# Verificare password in potpie
+kubectl get secret potpie-secrets -o yaml
 ```
 
 #### 2. Image pull failed

@@ -15,11 +15,12 @@ metadata:
   namespace: default
 data:
   PORT: "8080"
-  REDIS_HOST: "redis-client"
+  REDIS_HOST: "valkey-service.valkey.svc.cluster.local"
   REDIS_PORT: "6379"
-  REDIS_DB: "1"
+  REDIS_DB: "0"
   REDIS_USERNAME: "default"
-  REDIS_TLS_ENABLED: "false"
+  REDIS_TLS_ENABLED: "true"
+  REDIS_TLS_REJECT_UNAUTHORIZED: "false"
   MAX_CONCURRENT_JOBS: "5"
   MAX_RETRIES: "3"
   QUEUE_NAME: "potpie-analysis"

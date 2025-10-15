@@ -5,13 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
-env:
-  DOCKER_USERNAME: digital@pixdata.io
-  IMAGE_NAME: coderide-potpie-service
-  REGISTRY: docker.io
-
 jobs:
   build-and-push:
+    environment: master
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     name: Build and Push Docker Image
@@ -52,6 +48,7 @@ jobs:
         cache-to: type=gha,mode=max
         
   deploy:
+    environment: master
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
@@ -83,14 +80,21 @@ jobs:
       
     - name: Update secrets for Lightsail
       run: |
+        # Get valkey password from existing secret
+        VALKEY_PASSWORD=$(kubectl get secret valkey-auth -n valkey -o jsonpath='{.data.VALKEY_PASSWORD}' | base64 -d)
+        
+        # Create potpie secrets with valkey password
         kubectl create secret generic potpie-secrets \
           --from-literal=POTPIE_API_KEY="${{ secrets.POTPIE_API_KEY }}" \
-          --from-literal=REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}" \
+          --from-literal=REDIS_PASSWORD="$VALKEY_PASSWORD" \
           --namespace=default \
           --dry-run=client -o yaml | kubectl apply -f -
           
     - name: Deploy to Lightsail Kubernetes
       run: |
+        # Create valkey service if not exists
+        kubectl apply -f kubernetes/valkey-service.yaml
+        
         # Apply all manifests (image is already correct in deployment.yaml)
         kubectl apply -f kubernetes/deployment.yaml
         kubectl apply -f kubernetes/service.yaml

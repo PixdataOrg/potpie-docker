@@ -25,22 +25,23 @@ function createRedisConfig() {
   // Add TLS configuration if enabled
   if (process.env.REDIS_TLS_ENABLED === 'true') {
     try {
-      const certPath = process.env.REDIS_TLS_CERT_PATH;
-      if (!certPath) {
-        throw new Error('REDIS_TLS_CERT_PATH is required when TLS is enabled');
-      }
-
-      const resolvedCertPath = path.resolve(certPath);
-      if (!fs.existsSync(resolvedCertPath)) {
-        throw new Error(`Redis TLS certificate file not found: ${resolvedCertPath}`);
-      }
-
       config.tls = {
-        cert: fs.readFileSync(resolvedCertPath),
         rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== 'false'
       };
 
-      console.log(`✅ Redis TLS enabled with certificate: ${resolvedCertPath}`);
+      // Add client certificate if path is provided (optional for valkey)
+      const certPath = process.env.REDIS_TLS_CERT_PATH;
+      if (certPath) {
+        const resolvedCertPath = path.resolve(certPath);
+        if (fs.existsSync(resolvedCertPath)) {
+          config.tls.cert = fs.readFileSync(resolvedCertPath);
+          console.log(`✅ Redis TLS enabled with client certificate: ${resolvedCertPath}`);
+        } else {
+          console.warn(`⚠️ TLS cert path provided but file not found: ${resolvedCertPath}`);
+        }
+      } else {
+        console.log(`✅ Redis TLS enabled without client certificate (server auth only)`);
+      }
     } catch (error) {
       console.error('❌ Redis TLS configuration error:', error.message);
       throw error;
