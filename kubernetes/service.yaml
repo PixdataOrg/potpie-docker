@@ -5,13 +5,22 @@ metadata:
   namespace: default
   labels:
     app: potpie-service
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:region:account:certificate/cert-id"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
 spec:
   type: LoadBalancer
   ports:
-  - port: 80
+  - name: http
+    port: 80
     targetPort: 8080
     protocol: TCP
-    name: http
+  - name: https
+    port: 443
+    targetPort: 8080
+    protocol: TCP
   selector:
     app: potpie-service
 ---
@@ -23,11 +32,19 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/websocket-services: "potpie-service"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
+  tls:
+  - hosts:
+    - potpie.your-domain.com  # Replace with your actual domain or remove if using IP
+    secretName: potpie-tls
   rules:
-  - host: potpie.coderide.dev
+  - host: potpie.your-domain.com  # Replace with your actual domain or remove if using IP
     http:
       paths:
       - path: /
@@ -37,3 +54,18 @@ spec:
             name: potpie-service
             port:
               number: 80
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: digital@pixdata.io
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx

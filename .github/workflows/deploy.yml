@@ -1,43 +1,185 @@
-name: Deploy Potpie Microservice
+name: Deploy Potpie Service to Lightsail Kubernetes
 
 on:
   push:
-    branches:
-      - master
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  DOCKER_USERNAME: digital@pixdata.io
+  IMAGE_NAME: coderide-potpie-service
+  REGISTRY: docker.io
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Run Tests
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run basic tests
+      run: npm test
+      
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    name: Build and Push Docker Image
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ env.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
   deploy:
     runs-on: ubuntu-latest
-
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    name: Deploy to Kubernetes
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/coderide-potpie-service:latest
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: "latest"
-
-      - name: Configure Kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
-
-      - name: Deploy to Kubernetes
-        run: kubectl apply -f kubernetes/
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+        
+    - name: Configure kubectl
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+        
+    - name: Verify kubectl connection to Lightsail
+      run: kubectl cluster-info
+      
+    - name: Check existing Redis services
+      run: |
+        echo "=== Available Redis services ==="
+        kubectl get svc | grep -E "(redis|valkey)" || echo "No Redis services found"
+        kubectl get pods | grep -E "(redis|valkey)" || echo "No Redis pods found"
+      
+    - name: Update secrets for Lightsail
+      run: |
+        kubectl create secret generic potpie-secrets \
+          --from-literal=POTPIE_API_KEY="${{ secrets.POTPIE_API_KEY }}" \
+          --from-literal=REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}" \
+          --namespace=default \
+          --dry-run=client -o yaml | kubectl apply -f -
+          
+    - name: Deploy to Lightsail Kubernetes
+      run: |
+        # Apply all manifests (image is already correct in deployment.yaml)
+        kubectl apply -f kubernetes/deployment.yaml
+        kubectl apply -f kubernetes/service.yaml
+        
+    - name: Wait for deployment rollout
+      run: |
+        kubectl rollout status deployment/potpie-service --namespace=default --timeout=300s
+        
+    - name: Verify deployment
+      run: |
+        kubectl get pods -l app=potpie-service --namespace=default
+        kubectl get svc potpie-service --namespace=default
+        
+    - name: Get service status
+      run: |
+        echo "=== Deployment Status ==="
+        kubectl get deployment potpie-service --namespace=default
+        echo ""
+        echo "=== Service Status ==="
+        kubectl get svc potpie-service --namespace=default
+        echo ""
+        echo "=== Pod Status ==="
+        kubectl get pods -l app=potpie-service --namespace=default
+        echo ""
+        echo "=== Recent Events ==="
+        kubectl get events --namespace=default --sort-by='.lastTimestamp' | tail -10
+        
+  health-check:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    name: Health Check
+    
+    steps:
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+        
+    - name: Configure kubectl
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+        
+    - name: Wait for pods to be ready
+      run: |
+        kubectl wait --for=condition=ready pod -l app=potpie-service --namespace=default --timeout=300s
+        
+    - name: Test service health
+      run: |
+        # Get service IP
+        SERVICE_IP=$(kubectl get svc potpie-service --namespace=default -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        if [ -z "$SERVICE_IP" ]; then
+          SERVICE_IP=$(kubectl get svc potpie-service --namespace=default -o jsonpath='{.spec.clusterIP}')
+        fi
+        
+        echo "Testing service at IP: $SERVICE_IP"
+        
+        # Test health endpoint
+        kubectl run curl-test --image=curlimages/curl:latest --rm -i --restart=Never -- \
+          curl -f "http://$SERVICE_IP/health" || echo "Health check failed"
+          
+        # Test metrics endpoint
+        kubectl run curl-test --image=curlimages/curl:latest --rm -i --restart=Never -- \
+          curl -f "http://$SERVICE_IP/metrics" || echo "Metrics check failed"
+          
+    - name: Cleanup test resources
+      if: always()
+      run: |
+        kubectl delete pod curl-test --ignore-not-found=true --namespace=default

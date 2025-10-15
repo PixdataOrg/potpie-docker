@@ -1,48 +1,69 @@
-# 🧠 Coderide Potpie Service — Complete Microservice
+# 🧠 Coderide Potpie Service — BullMQ Queue System
 
-A stateless microservice for analyzing GitHub repositories using [Potpie.ai](https://potpie.ai) APIs. This service orchestrates the complete flow from repository parsing to knowledge graph extraction, providing structured data ready for vector database storage.
+A robust, scalable microservice for analyzing GitHub repositories using [Potpie.ai](https://potpie.ai) APIs with BullMQ queue management. This service provides asynchronous processing, automatic retries, and real-time WebSocket updates for production-grade repository analysis.
 
 ## 📁 Project Structure
 
 ```
 coderide-potpie-service/
 ├── src/
-│   ├── index.js              # Main Express server with complete flow
-│   └── potpieClient.js       # Potpie API v2 client with all endpoints
+│   ├── index.js              # Main Express server with BullMQ integration
+│   ├── potpieClient.js       # Potpie API v2 client
+│   ├── redisConfig.js        # Redis connection with TLS support
+│   └── analysisWorker.js     # BullMQ worker for processing jobs
+├── certs/                    # TLS certificates for Redis (if needed)
 ├── kubernetes/
 │   ├── deployment.yaml       # Kubernetes deployment with secrets
 │   └── service.yaml          # Kubernetes service and ingress
 ├── Dockerfile                # Docker container configuration
 ├── package.json              # Node.js dependencies and scripts
 ├── .env.example              # Environment variables template
-├── .dockerignore             # Docker build exclusions
+├── test-service.js           # Basic API test suite
+├── websocket-test-client.js  # WebSocket integration test client
 └── README.md                 # This file
 ```
 
 ## ⚙️ Prerequisites
 
 - Node.js 20+
+- Redis server (for BullMQ queues)
 - Docker
 - Kubernetes cluster (e.g., AWS Lightsail)
 - Potpie.ai API key
 - GitHub token for private repositories
-- (Optional) Docker Hub or GitHub Container Registry account
 
 ## 🚀 Quick Start
 
 ### 1. Environment Setup
 
-Copy the environment template and configure your API key:
+Copy the environment template and configure your settings:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your Potpie API key:
+Edit `.env` with your configuration:
 
 ```env
+# Server Configuration
 PORT=8080
 POTPIE_API_KEY=your_actual_potpie_api_key_here
+
+# Redis Configuration for BullMQ
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your_redis_password
+REDIS_DB=1
+REDIS_USERNAME=default
+
+# Redis TLS (if needed)
+REDIS_TLS_ENABLED=false
+REDIS_TLS_CERT_PATH=./certs/redis-client.crt
+
+# BullMQ Configuration
+MAX_CONCURRENT_JOBS=5
+MAX_RETRIES=3
+QUEUE_NAME=potpie-analysis
 ```
 
 ### 2. Local Development
@@ -63,13 +84,19 @@ The service will be available at `http://localhost:8080`
 
 ### 3. Test the Service
 
-Health check:
+Basic health check:
 
 ```bash
 curl http://localhost:8080/
 ```
 
-Analyze a repository (complete flow):
+Queue statistics:
+
+```bash
+curl http://localhost:8080/queue/stats
+```
+
+Start repository analysis:
 
 ```bash
 curl -X POST http://localhost:8080/analyze \
@@ -87,40 +114,39 @@ curl -X POST http://localhost:8080/analyze \
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | Basic health check |
-| GET | `/health` | Detailed health check with Potpie API status |
-| POST | `/analyze` | Complete repository analysis flow |
-| GET | `/status/:projectId` | Check parsing status of a project |
+| GET | `/health` | Detailed health check with Redis and queue status |
+| POST | `/analyze` | Start asynchronous repository analysis |
+| GET | `/status/:projectId` | Check analysis job status |
+| GET | `/queue/stats` | Queue statistics and monitoring |
+| WebSocket | `/` | Real-time analysis updates |
 
-## 🔍 Complete Analysis Flow
+## 🔄 BullMQ Queue Architecture
 
-The `/analyze` endpoint implements the full Potpie workflow:
+### **Queue Flow:**
+```
+POST /analyze → Potpie Parse → BullMQ Queue → Worker → WebSocket Updates
+     ↓                           ↓              ↓
+project_id ←                Job queued    Processing → Finished
+```
 
-### 1. Repository Parsing
-- Initiates parsing with `POST /api/v2/parse`
-- Supports private repositories with GitHub tokens
-- Returns `project_id` for tracking
+### **Job States:**
+1. **`queued`** → Job added to BullMQ queue, waiting for worker
+2. **`parsing`** → Potpie is parsing the repository
+3. **`ready`** → Parsing completed, starting conversations
+4. **`processing_conversations`** → Extracting knowledge graph
+5. **`finished`** → Analysis complete, data sent via WebSocket
+6. **`failed`** → Job failed after retries
 
-### 2. Status Monitoring
-- Polls `GET /api/v2/parsing-status/{project_id}`
-- Waits for status to become `ready`
-- Handles timeout and error conditions
-
-### 3. Agent Integration
-- Creates conversation with `codebase_qna_agent`
-- Supports multiple agent types (`debugging_agent`, etc.)
-
-### 4. Knowledge Graph Extraction
-- Extracts nodes using common tags (`function`, `class`, `module`, etc.)
-- Retrieves code snippets for each node
-- Queries knowledge graph with user questions
-
-### 5. Structured Output
-- Composes data ready for vector database storage
-- Includes metadata, snippets, and analysis results
+### **Queue Features:**
+- **Persistence**: Jobs survive service restarts
+- **Retry Logic**: 3 automatic retries with exponential backoff
+- **Concurrency**: Maximum 5 concurrent jobs
+- **Monitoring**: Real-time queue statistics
+- **Cleanup**: Automatic removal of old completed/failed jobs
 
 ## 📊 POST /analyze
 
-Analyzes a GitHub repository using the complete Potpie flow.
+Starts asynchronous repository analysis using BullMQ.
 
 **Request Body:**
 
@@ -133,56 +159,24 @@ Analyzes a GitHub repository using the complete Potpie flow.
 }
 ```
 
-**Parameters:**
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `repo` | Yes | Repository name in format `org/repo-name` |
-| `branch` | No | Branch name (default: `main`) |
-| `question` | No | Analysis question (default: "Explain the repository architecture") |
-| `github_token` | No | GitHub token for private repositories |
-
 **Response:**
 
 ```json
 {
   "success": true,
-  "data": {
-    "project_id": "abc123",
-    "repo": "org/repository-name",
-    "branch": "main",
-    "question": "Explain the authentication module",
-    "parsing_status": "ready",
-    "snippets": [
-      {
-        "node_id": "n1",
-        "file_path": "src/auth.js",
-        "code": "function authenticate(token) { ... }",
-        "tags": ["function", "authentication"],
-        "description": "Main authentication function",
-        "line_start": 10,
-        "line_end": 25
-      }
-    ],
-    "snippets_count": 45,
-    "analysis_response": {
-      "answer": "The authentication module...",
-      "relevant_files": ["src/auth.js", "src/middleware/auth.js"]
-    },
-    "metadata": {
-      "parsed_at": "2025-01-15T16:53:00.000Z",
-      "total_nodes_found": 120,
-      "processed_nodes": 45,
-      "has_github_token": true
-    }
-  },
-  "timestamp": "2025-01-15T16:53:00.000Z"
+  "project_id": "abc123",
+  "job_id": "abc123",
+  "status": "queued",
+  "message": "Repository analysis queued. Connect to WebSocket for real-time updates.",
+  "websocket_endpoint": "/ws/abc123",
+  "queue_position": 2,
+  "timestamp": "2025-01-15T18:48:00.000Z"
 }
 ```
 
 ## 📈 GET /status/:projectId
 
-Check the parsing status of a specific project.
+Check the status of an analysis job.
 
 **Response:**
 
@@ -190,209 +184,300 @@ Check the parsing status of a specific project.
 {
   "success": true,
   "project_id": "abc123",
-  "status": "ready",
+  "job_id": "abc123",
+  "status": "processing_conversations",
+  "progress": 75,
+  "queue_position": null,
+  "attempts": 1,
+  "max_attempts": 3,
   "details": {
-    "status": "ready",
-    "progress": 100,
-    "files_processed": 150,
-    "nodes_extracted": 120
+    "created_at": "2025-01-15T18:48:00.000Z",
+    "processed_at": "2025-01-15T18:48:05.000Z",
+    "finished_at": null,
+    "failed_reason": null
   },
-  "timestamp": "2025-01-15T16:53:00.000Z"
+  "timestamp": "2025-01-15T18:50:00.000Z"
 }
+```
+
+## 📊 GET /queue/stats
+
+Monitor queue performance and status.
+
+**Response:**
+
+```json
+{
+  "queue_name": "potpie-analysis",
+  "stats": {
+    "waiting": 3,
+    "active": 2,
+    "completed": 45,
+    "failed": 1,
+    "total": 51
+  },
+  "worker_status": "running",
+  "max_concurrency": 5,
+  "max_retries": 3,
+  "timestamp": "2025-01-15T18:50:00.000Z"
+}
+```
+
+## 🔌 WebSocket Integration
+
+### **Connection:**
+
+```javascript
+const socket = io('ws://localhost:8080');
+
+// Join project room
+socket.emit('join_project', 'project_id');
+
+// Listen for status updates
+socket.on('status_update', (data) => {
+  console.log(`Status: ${data.status} - ${data.message}`);
+});
+
+// Listen for completion
+socket.on('analysis_complete', (data) => {
+  console.log('Analysis finished!');
+  // Save data.data to vector database
+  saveToVectorDB(data.data);
+});
+
+// Listen for errors
+socket.on('analysis_error', (data) => {
+  console.error('Analysis failed:', data.error);
+});
+```
+
+### **WebSocket Events:**
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `status_update` | Job status changed | `{project_id, status, message, timestamp}` |
+| `analysis_complete` | Analysis finished successfully | `{project_id, status: 'finished', data, timestamp}` |
+| `analysis_error` | Analysis failed | `{project_id, status: 'failed', error, timestamp}` |
+
+## 🔧 Redis Configuration
+
+### **Basic Configuration:**
+```env
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your_password
+REDIS_DB=1
+```
+
+### **TLS Configuration:**
+```env
+REDIS_TLS_ENABLED=true
+REDIS_TLS_CERT_PATH=./certs/redis-client.crt
+REDIS_TLS_REJECT_UNAUTHORIZED=true
+```
+
+### **Production Examples:**
+
+**AWS ElastiCache:**
+```env
+REDIS_HOST=clustercfg.my-cluster.cache.amazonaws.com
+REDIS_PORT=6379
+REDIS_TLS_ENABLED=true
+```
+
+**Redis Cloud:**
+```env
+REDIS_HOST=redis-12345.c1.us-east-1-1.ec2.cloud.redislabs.com
+REDIS_PORT=12345
+REDIS_PASSWORD=your_cloud_password
+REDIS_TLS_ENABLED=true
 ```
 
 ## 🐳 Docker Deployment
 
-### Build the Docker Image
+### Build and Run
 
 ```bash
+# Build image
 docker build -t coderide-potpie-service .
-```
 
-### Run Locally with Docker
-
-```bash
+# Run with environment variables
 docker run -p 8080:8080 \
-  -e POTPIE_API_KEY=your_api_key_here \
+  -e POTPIE_API_KEY=your_api_key \
+  -e REDIS_HOST=redis_host \
+  -e REDIS_PASSWORD=redis_password \
   coderide-potpie-service
 ```
 
-### Push to Registry (Optional)
+### Docker Compose Example
 
-```bash
-# Tag for your registry
-docker tag coderide-potpie-service your-username/coderide-potpie-service:latest
-
-# Push to Docker Hub
-docker push your-username/coderide-potpie-service:latest
+```yaml
+version: '3.8'
+services:
+  potpie-service:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - POTPIE_API_KEY=your_api_key
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=redis_password
+    depends_on:
+      - redis
+  
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redis_password
+    ports:
+      - "6379:6379"
 ```
 
 ## ☸️ Kubernetes Deployment
 
 ### 1. Configure Secrets
 
-Edit `kubernetes/deployment.yaml` and replace the placeholder API key:
+Edit `kubernetes/deployment.yaml`:
 
 ```yaml
 stringData:
   POTPIE_API_KEY: "your_actual_potpie_api_key_here"
+  REDIS_PASSWORD: "your_redis_password"
 ```
 
-### 2. Deploy to Kubernetes
+### 2. Deploy
 
 ```bash
 kubectl apply -f kubernetes/
 ```
 
-### 3. Verify Deployment
-
-Check pods:
+### 3. Monitor
 
 ```bash
+# Check pods
 kubectl get pods -l app=potpie-service
+
+# Check queue stats
+kubectl port-forward svc/potpie-service 8080:80
+curl http://localhost:8080/queue/stats
 ```
-
-Check service:
-
-```bash
-kubectl get svc potpie-service
-```
-
-Get external IP:
-
-```bash
-kubectl get svc potpie-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `PORT` | No | 8080 | Server port |
-| `POTPIE_API_KEY` | Yes | - | Your Potpie.ai API key |
-| `LOG_LEVEL` | No | info | Logging level |
-| `REQUEST_TIMEOUT` | No | 60000 | Request timeout in milliseconds |
-
-### Potpie API Integration
-
-The service integrates with Potpie API v2 endpoints:
-
-- `POST /api/v2/parse` - Repository parsing
-- `GET /api/v2/parsing-status/{project_id}` - Status monitoring
-- `POST /api/v2/conversations` - Agent conversations
-- `POST /api/v2/knowledge-graph/nodes-from-tags` - Node extraction
-- `POST /api/v2/knowledge-graph/code-from-node` - Code retrieval
-- `POST /api/v2/knowledge-graph/query` - Knowledge graph queries
 
 ## 🔒 Security Features
 
-### GitHub Token Handling
-- Secure token transmission for private repositories
-- Token validation and error handling
-- No token logging or persistence
+### **Redis Security:**
+- TLS encryption support
+- Password authentication
+- Certificate-based authentication
+- Connection validation
 
-### Container Security
-- **Non-root container**: Runs as user ID 1001
-- **Dropped capabilities**: Minimal container permissions
-- **Secrets management**: API keys stored in Kubernetes secrets
-- **Security headers**: Helmet.js for HTTP security
-- **Input validation**: Request parameter validation
-- **CORS enabled**: Cross-origin resource sharing configured
+### **Application Security:**
+- GitHub token secure handling
+- No token logging or persistence
+- Input validation and sanitization
+- Rate limiting via queue concurrency
+
+### **Container Security:**
+- Non-root user execution
+- Minimal attack surface
+- Security headers (Helmet.js)
+- Secrets management
 
 ## 📊 Monitoring & Observability
 
-### Health Checks
-- **Liveness probe**: `GET /` - Basic service availability
-- **Readiness probe**: `GET /health` - Service + Potpie API connectivity
-- **Docker health check**: Container-level health monitoring
+### **Health Checks:**
+- Service health: `GET /health`
+- Queue statistics: `GET /queue/stats`
+- Redis connectivity validation
+- Potpie API connectivity check
 
-### Logging
-The service provides comprehensive logging:
-
+### **Logging:**
 ```bash
-# Docker
-docker logs <container-id>
+# Docker logs
+docker logs <container-id> -f
 
-# Kubernetes
+# Kubernetes logs
 kubectl logs -l app=potpie-service -f
 ```
 
-### Performance Considerations
-- **Parsing timeout**: 5 minutes maximum wait time
-- **Node processing limit**: 50 nodes to avoid timeouts
-- **Request timeout**: 60 seconds for API calls
-- **Memory limits**: 512Mi maximum in Kubernetes
+### **Metrics:**
+- Queue depth and processing times
+- Job success/failure rates
+- Worker concurrency utilization
+- WebSocket connection counts
 
-## 🧩 Integration with Coderide Backend
+## 🧪 Testing
 
-Use the service from your Coderide backend:
-
-```javascript
-const analyzeRepository = async (repo, branch, question, githubToken) => {
-  const response = await fetch('https://potpie.coderide.dev/analyze', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      repo,
-      branch,
-      question,
-      github_token: githubToken
-    })
-  });
-
-  const result = await response.json();
-  
-  if (result.success) {
-    // Save result.data to Supabase vector DB
-    await saveToVectorDB(result.data);
-    return result.data;
-  } else {
-    throw new Error(result.error);
-  }
-};
+### **Basic API Tests:**
+```bash
+npm test
 ```
+
+### **WebSocket Integration Tests:**
+```bash
+npm run test:websocket
+```
+
+### **Custom Tests:**
+```bash
+# Test specific repository
+node websocket-test-client.js facebook/react main "Explain React architecture"
+
+# Test with private repo
+node websocket-test-client.js --token ghp_xxx private-org/private-repo
+```
+
+## 🚀 Production Considerations
+
+### **Scaling:**
+- Horizontal scaling: Multiple service instances
+- Worker scaling: Increase `MAX_CONCURRENT_JOBS`
+- Redis clustering for high availability
+
+### **Performance:**
+- Queue optimization: Adjust retry policies
+- Memory management: Configure job cleanup
+- Connection pooling: Redis connection limits
+
+### **Reliability:**
+- Health check endpoints for load balancers
+- Graceful shutdown handling
+- Job persistence across restarts
+- Automatic retry mechanisms
 
 ## 🐛 Troubleshooting
 
-### Common Issues
+### **Common Issues:**
 
-1. **"POTPIE_API_KEY environment variable not set"**
-   - Ensure your `.env` file exists and contains the API key
-   - For Kubernetes, verify the secret is properly configured
+1. **"Analysis queue not initialized"**
+   - Check Redis connection
+   - Verify Redis credentials and TLS settings
+   - Check network connectivity
 
-2. **"Failed to initiate repository parsing"**
-   - Check that your Potpie API key is valid and active
-   - Verify the repository name format is correct (`org/repo-name`)
+2. **"Redis connection failed"**
+   - Validate Redis host and port
+   - Check TLS certificate path
+   - Verify Redis server is running
 
-3. **"Repository parsing failed or timed out"**
-   - Large repositories may take longer than 5 minutes
-   - Check repository accessibility with the provided GitHub token
+3. **Jobs stuck in queue**
+   - Check worker status: `GET /queue/stats`
+   - Verify Potpie API connectivity
+   - Check worker logs for errors
 
-4. **"Failed to create conversation"**
-   - This is non-critical; the service continues with knowledge graph extraction
-   - Verify agent types are supported by your Potpie plan
+4. **WebSocket connection issues**
+   - Verify CORS configuration
+   - Check firewall rules
+   - Validate WebSocket transport
 
-### Error Codes
+### **Debug Commands:**
+```bash
+# Check queue status
+curl http://localhost:8080/queue/stats
 
-| Status | Error | Description |
-|--------|-------|-------------|
-| 400 | Missing required parameter | `repo` parameter is required |
-| 401 | Unauthorized | Invalid Potpie API key or GitHub token |
-| 408 | Parsing timeout | Repository parsing exceeded 5 minutes |
-| 500 | Internal server error | Potpie API error or service failure |
+# Check specific job
+curl http://localhost:8080/status/project_id
 
-## 🚀 Future Enhancements
-
-- **Multi-branch support**: Analyze multiple branches simultaneously
-- **Caching layer**: Redis cache for repeated repository analyses
-- **Webhook integration**: Real-time updates for repository changes
-- **Advanced agents**: Support for custom Potpie agents
-- **Batch processing**: Analyze multiple repositories in parallel
-- **Metrics collection**: Prometheus metrics for monitoring
+# Monitor logs
+docker logs potpie-service -f
+```
 
 ## 📄 License
 
@@ -402,16 +487,16 @@ const analyzeRepository = async (repo, branch, question, githubToken) => {
 
 ## ✅ Deployment Checklist
 
-- [ ] Clone repository
-- [ ] Configure `.env` file or Kubernetes secrets
-- [ ] Install Node.js dependencies (`npm install`)
-- [ ] Test locally (`npm run dev`)
-- [ ] Build Docker image (`docker build`)
-- [ ] Deploy to Kubernetes (`kubectl apply -f kubernetes/`)
-- [ ] Verify service accessibility
-- [ ] Test `/analyze` endpoint with private repository
-- [ ] Test `/status/:projectId` endpoint
-- [ ] Configure custom domain (optional)
-- [ ] Set up monitoring and alerts
-- [ ] Integrate with Coderide backend
-- [ ] Test vector DB data storage
+- [ ] Redis server configured and accessible
+- [ ] Environment variables configured
+- [ ] TLS certificates in place (if needed)
+- [ ] Dependencies installed (`npm install`)
+- [ ] Service tested locally (`npm run dev`)
+- [ ] Docker image built and tested
+- [ ] Kubernetes secrets configured
+- [ ] Service deployed to cluster
+- [ ] Health checks passing
+- [ ] Queue statistics accessible
+- [ ] WebSocket connections working
+- [ ] Integration with backend tested
+- [ ] Monitoring and alerting configured
