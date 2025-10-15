@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKER_USERNAME: digital@pixdata.io
+  DOCKER_USERNAME: pixdata
   IMAGE_NAME: coderide-potpie-service
   REGISTRY: docker.io
 
