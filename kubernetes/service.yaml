@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: potpie-service
+  namespace: default
+  labels:
+    app: potpie-service
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: potpie-service
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: potpie-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+spec:
+  rules:
+  - host: potpie.coderide.dev
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: potpie-service
+            port:
+              number: 80
