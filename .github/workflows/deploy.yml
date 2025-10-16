@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 env:
+  DOCKER_EMAIL: digital@pixdata.io
   DOCKER_USERNAME: pagewings
   IMAGE_NAME: coderide-potpie-service
   REGISTRY: docker.io
@@ -29,7 +30,7 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ env.DOCKER_USERNAME }}
+          username: ${{ env.DOCKER_EMAIL }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       # 4️⃣ Crea variabile con lo short SHA (tag univoco)
