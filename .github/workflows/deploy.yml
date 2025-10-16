@@ -13,6 +13,7 @@ env:
 
 jobs:
   build-and-deploy:
+    environment: master
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     name: Build, Push and Deploy Docker Image
