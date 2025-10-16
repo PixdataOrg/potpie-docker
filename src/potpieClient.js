@@ -3,7 +3,7 @@ const axios = require('axios');
 class PotpieClient {
   constructor(apiKey) {
     this.apiKey = apiKey;
-    this.baseURL = 'https://api.potpie.ai';
+    this.baseURL = 'https://production-api.potpie.ai/';
     
     this.client = axios.create({
       baseURL: this.baseURL,
