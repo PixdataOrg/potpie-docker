@@ -220,9 +220,8 @@ app.post('/analyze', async (req, res) => {
       project_id: projectId,
       job_id: job.id,
       status: 'queued',
-      message: 'Repository analysis queued. Connect to WebSocket for real-time updates.',
-      websocket_endpoint: `/ws/${projectId}`,
-      queue_position: await job.getPosition(),
+      message: 'Repository analysis queued. Connect to Socket.IO for real-time updates.',
+      socket_io_endpoint: "http://18.198.147.24:31080",
       timestamp: new Date().toISOString()
     });
 
@@ -287,7 +286,6 @@ app.get('/status/:projectId', async (req, res) => {
         job_id: job.id,
         status: status,
         progress: progress,
-        queue_position: jobState === 'waiting' ? await job.getPosition() : null,
         attempts: job.attemptsMade,
         max_attempts: job.opts.attempts,
         details: {
@@ -434,7 +432,6 @@ io.on('connection', (socket) => {
             status: status,
             message: getStatusMessage(status),
             job_id: job.id,
-            queue_position: jobState === 'waiting' ? await job.getPosition() : null,
             timestamp: new Date().toISOString()
           });
         }

@@ -3,7 +3,6 @@ const axios = require('axios');
 class PotpieClient {
     constructor(apiKey) {
         this.apiKey = apiKey;
-        console.log("🧩 Using API key:", this.apiKey ? this.apiKey.slice(0,10) + "..." : "undefined");
         this.baseURL = 'https://production-api.potpie.ai/';
 
         this.client = axios.create({
