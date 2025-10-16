@@ -35,12 +35,9 @@ function createRedisConfig() {
         const resolvedCertPath = path.resolve(certPath);
         if (fs.existsSync(resolvedCertPath)) {
           config.tls.cert = fs.readFileSync(resolvedCertPath);
-          console.log(`✅ Redis TLS enabled with client certificate: ${resolvedCertPath}`);
         } else {
-          console.warn(`⚠️ TLS cert path provided but file not found: ${resolvedCertPath}`);
         }
       } else {
-        console.log(`✅ Redis TLS enabled without client certificate (server auth only)`);
       }
     } catch (error) {
       console.error('❌ Redis TLS configuration error:', error.message);
@@ -69,7 +66,6 @@ async function testRedisConnection() {
 
   try {
     await redis.ping();
-    console.log('✅ Redis connection successful');
     await redis.quit();
     return true;
   } catch (error) {

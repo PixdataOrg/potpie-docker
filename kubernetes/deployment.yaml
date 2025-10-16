@@ -1,25 +1,14 @@
 apiVersion: v1
-kind: Secret
-metadata:
-  name: potpie-secrets
-  namespace: default
-type: Opaque
-stringData:
-  POTPIE_API_KEY: "your_potpie_api_key_here"
-  REDIS_PASSWORD: "your_redis_password_here"
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: potpie-config
   namespace: default
 data:
   PORT: "8080"
-  REDIS_HOST: "valkey-service.valkey.svc.cluster.local"
+  REDIS_HOST: "valkey.valkey.svc.cluster.local"
   REDIS_PORT: "6379"
   REDIS_DB: "0"
-  REDIS_USERNAME: "default"
-  REDIS_TLS_ENABLED: "true"
+  REDIS_TLS_ENABLED: "false"
   REDIS_TLS_REJECT_UNAUTHORIZED: "false"
   MAX_CONCURRENT_JOBS: "5"
   MAX_RETRIES: "3"
@@ -51,58 +40,58 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       containers:
-      - name: potpie-service
-        image: digital@pixdata.io/coderide-potpie-service:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 8080
-          name: http
-          protocol: TCP
-        env:
-        - name: POTPIE_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: potpie-secrets
-              key: POTPIE_API_KEY
-        - name: REDIS_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: potpie-secrets
-              key: REDIS_PASSWORD
-        envFrom:
-        - configMapRef:
-            name: potpie-config
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "200m"
-          limits:
-            memory: "1Gi"
-            cpu: "1000m"
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1001
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false
-          capabilities:
-            drop:
-            - ALL
+        - name: potpie-service
+          image: pagewings/coderide-potpie-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: POTPIE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: potpie-secrets
+                  key: POTPIE_API_KEY
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: potpie-secrets
+                  key: REDIS_PASSWORD
+          envFrom:
+            - configMapRef:
+                name: potpie-config
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
       restartPolicy: Always
       securityContext:
         fsGroup: 1001
@@ -119,7 +108,7 @@ spec:
     matchLabels:
       app: potpie-service
   endpoints:
-  - port: http
-    path: /metrics
-    interval: 30s
-    scrapeTimeout: 10s
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
