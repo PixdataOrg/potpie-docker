@@ -20,7 +20,10 @@ class AnalysisWorker {
    * Start the worker
    */
   start() {
+    console.log(`🔧 [WORKER] Starting worker for queue: ${this.queueName}`);
+    
     const connection = getBullMQConnection();
+    console.log(`🔧 [WORKER] Connection config:`, JSON.stringify(connection, null, 2));
     
     this.worker = new Worker(
       this.queueName,
@@ -32,23 +35,39 @@ class AnalysisWorker {
         removeOnFail: 50,     // Keep last 50 failed jobs
       }
     );
+    
+    console.log(`🔧 [WORKER] Worker created for queue: ${this.queueName}`);
+    console.log(`🔧 [WORKER] ProcessJob function bound:`, typeof this.processJob === 'function');
 
     // Worker event handlers
     this.worker.on('ready', () => {
-      console.log(`🔧 Analysis worker started (concurrency: ${this.maxConcurrency})`);
+      console.log(`🔧 [WORKER] Analysis worker started (concurrency: ${this.maxConcurrency})`);
+      console.log(`🔧 [WORKER] Worker is ready and listening for jobs on queue: ${this.queueName}`);
     });
 
     this.worker.on('error', (error) => {
-      console.error('❌ Worker error:', error);
+      console.error('❌ [WORKER] Worker error:', error);
     });
 
     this.worker.on('failed', (job, error) => {
-      console.error(`❌ Job ${job.id} failed:`, error.message);
+      console.error(`❌ [WORKER] Job ${job.id} failed:`, error.message);
       this.emitJobUpdate(job.data.project_id, 'failed', `Job failed: ${error.message}`);
     });
 
     this.worker.on('completed', (job) => {
-      console.log(`✅ Job ${job.id} completed successfully`);
+      console.log(`✅ [WORKER] Job ${job.id} completed successfully`);
+    });
+
+    this.worker.on('active', (job) => {
+      console.log(`🔄 [WORKER] Job ${job.id} is now active and being processed`);
+    });
+
+    this.worker.on('stalled', (jobId) => {
+      console.warn(`⚠️ [WORKER] Job ${jobId} stalled`);
+    });
+
+    this.worker.on('progress', (job, progress) => {
+      console.log(`📊 [WORKER] Job ${job.id} progress: ${progress}%`);
     });
 
     return this.worker;
@@ -79,8 +98,10 @@ class AnalysisWorker {
       this.emitJobUpdate(project_id, 'parsing', 'Repository parsing in progress...');
 
       // Step 2: Wait for parsing to complete
-      console.log(`Waiting for parsing to complete for project ${project_id}...`);
+      console.log(`🔄 [WORKER] Waiting for parsing to complete for project ${project_id}...`);
       const parsingResult = await this.potpieClient.waitForParsingComplete(project_id);
+      
+      console.log(`🔄 [WORKER] Parsing result:`, JSON.stringify(parsingResult, null, 2));
       
       if (!parsingResult.success) {
         throw new Error(`Parsing failed: ${parsingResult.error.message}`);
@@ -95,20 +116,26 @@ class AnalysisWorker {
       console.log(`Starting conversation processing for project ${project_id}...`);
 
       // Create conversation with codebase QnA agent
+      console.log(`🔄 [WORKER] Creating conversation for project ${project_id}...`);
       const conversationResult = await this.potpieClient.createConversation(project_id, 'codebase_qna_agent');
       
+      console.log(`🔄 [WORKER] Conversation result:`, JSON.stringify(conversationResult, null, 2));
+      
       if (!conversationResult.success) {
-        console.warn(`Failed to create conversation for project ${project_id}, proceeding with knowledge graph queries`);
+        console.warn(`⚠️ [WORKER] Failed to create conversation for project ${project_id}, proceeding with knowledge graph queries`);
       }
 
       // Extract data using knowledge graph tools
       const commonTags = ['function', 'class', 'module', 'component', 'service', 'controller', 'model'];
+      console.log(`🔄 [WORKER] Requesting nodes from tags:`, commonTags);
       const nodesResult = await this.potpieClient.getNodesFromTags(project_id, commonTags);
+      
+      console.log(`🔄 [WORKER] Nodes result:`, JSON.stringify(nodesResult, null, 2));
       
       let snippets = [];
       
       if (nodesResult.success && nodesResult.data.nodes) {
-        console.log(`Found ${nodesResult.data.nodes.length} nodes for project ${project_id}`);
+        console.log(`🔄 [WORKER] Found ${nodesResult.data.nodes.length} nodes for project ${project_id}`);
         
         // Get code for each node (limit to first 50 to avoid timeout)
         const nodesToProcess = nodesResult.data.nodes.slice(0, 50);
