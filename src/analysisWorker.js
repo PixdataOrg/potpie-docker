@@ -26,7 +26,7 @@ class AnalysisWorker {
       this.queueName,
       this.processJob.bind(this),
       {
-        ...connection,
+        connection: connection.connection,
         concurrency: this.maxConcurrency,
         removeOnComplete: 10, // Keep last 10 completed jobs
         removeOnFail: 50,     // Keep last 50 failed jobs
@@ -72,7 +72,8 @@ class AnalysisWorker {
     const room = `project_${project_id}`;
 
     try {
-      console.log(`🔄 Processing job ${job.id} for project ${project_id}`);
+      console.log(`🔄 [WORKER] Processing job ${job.id} for project ${project_id}`);
+      console.log(`🔄 [WORKER] Job data:`, { project_id, repo, branch, question: question?.substring(0, 100) });
 
       // Step 1: Emit parsing status
       this.emitJobUpdate(project_id, 'parsing', 'Repository parsing in progress...');
