@@ -11,7 +11,6 @@ function createRedisConfig() {
     port: parseInt(process.env.REDIS_PORT) || 6379,
     db: parseInt(process.env.REDIS_DB) || 1,
     username: process.env.REDIS_USERNAME || 'default',
-    maxRetriesPerRequest: 3,
     retryDelayOnFailover: 100,
     enableReadyCheck: false,
     maxRetriesPerRequest: null,
