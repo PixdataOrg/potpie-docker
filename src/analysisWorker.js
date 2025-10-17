@@ -116,7 +116,7 @@ class AnalysisWorker {
           const commonTags = ['function', 'class', 'module', 'component', 'service', 'controller', 'model'];
 
           const userPrompt = `${question}.
-              Return the result in the following format:        
+              Answer only with the result formatted in a JSON structure like following:        
               {
                 "snippets": [{ "node_id": "...", "file_path": "...", "code": "...", "tags": [...], "description": "...", "line_start": 0, "line_end": 0 }],
                 "snippets_count": <number>,
