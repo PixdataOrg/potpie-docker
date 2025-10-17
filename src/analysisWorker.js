@@ -142,6 +142,7 @@ class AnalysisWorker {
               content: userPrompt
           });
 
+          console.log(response);
           // 🧾 Step 5: Process agent output
           const agentOutput = response?.data || {};
           console.log(`✅ [WORKER] Agent output received:`, JSON.stringify(agentOutput, null, 2));
