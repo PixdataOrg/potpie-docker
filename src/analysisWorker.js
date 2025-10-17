@@ -132,10 +132,7 @@ class AnalysisWorker {
             `;
 
           console.log(`🔄 [WORKER] Sending analysis request to agent...`);
-          const response = await this.potpieClient.sendMessage(conversationId, {
-              role: 'user',
-              content: userPrompt
-          });
+          const response = await this.potpieClient.sendMessage(conversationId, { content: userPrompt });
 
           // 🧾 Step 5: Process agent output
           const agentOutput = response?.data || {};
