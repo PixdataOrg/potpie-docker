@@ -122,8 +122,8 @@ class PotpieClient {
     async createConversation(projectId, agentType = 'codebase_qna_agent') {
         try {
             const response = await this.client.post('/api/v2/conversations', {
-                project_id: projectId,
-                agent_type: agentType
+                project_ids: [projectId],
+                agent_ids: [agentType]
             });
 
             return {
@@ -144,82 +144,27 @@ class PotpieClient {
         }
     }
 
-    // Get nodes from tags using knowledge graph
-    async getNodesFromTags(projectId, tags) {
-        try {
-            const response = await this.client.post('/api/v2/knowledge-graph/nodes-from-tags', {
-                project_id: projectId,
-                tags: tags
-            });
-
-            return {
-                success: true,
-                data: response.data
-            };
-        } catch (error) {
-            console.error('Potpie Get Nodes From Tags Error:', error.response?.data || error.message);
-
-            return {
-                success: false,
-                error: {
-                    message: error.response?.data?.message || error.message,
-                    status: error.response?.status || 500,
-                    details: error.response?.data || null
-                }
-            };
-        }
+    async getAgentByName(name) {
+        const res = await this.client.get('/api/v2/custom-agents/agents');
+        if (!res?.data) return null;
+        return res.data.find(a => a.name === name);
     }
 
-    // Get code from node ID
-    async getCodeFromNodeId(projectId, nodeId) {
-        try {
-            const response = await this.client.post('/api/v2/knowledge-graph/code-from-node', {
-                project_id: projectId,
-                node_id: nodeId
-            });
-
-            return {
-                success: true,
-                data: response.data
-            };
-        } catch (error) {
-            console.error('Potpie Get Code From Node Error:', error.response?.data || error.message);
-
-            return {
-                success: false,
-                error: {
-                    message: error.response?.data?.message || error.message,
-                    status: error.response?.status || 500,
-                    details: error.response?.data || null
-                }
-            };
+    // Verifica se l'agente esiste, altrimenti lo crea
+    async ensureCustomAgent(agentConfig) {
+        const existing = await this.getAgentByName(agentConfig.name);
+        if (existing) {
+            console.log(`ℹ️ [POTPIE] Found existing agent: ${agentConfig.name}`);
+            return existing;
         }
+
+        console.log(`🆕 [POTPIE] Creating new agent: ${agentConfig.name}`);
+        const created = await this.createCustomAgent(agentConfig);
+        return created.data;
     }
 
-    // Ask knowledge graph queries
-    async askKnowledgeGraphQueries(projectId, query) {
-        try {
-            const response = await this.client.post('/api/v2/knowledge-graph/query', {
-                project_id: projectId,
-                query: query
-            });
-
-            return {
-                success: true,
-                data: response.data
-            };
-        } catch (error) {
-            console.error('Potpie Knowledge Graph Query Error:', error.response?.data || error.message);
-
-            return {
-                success: false,
-                error: {
-                    message: error.response?.data?.message || error.message,
-                    status: error.response?.status || 500,
-                    details: error.response?.data || null
-                }
-            };
-        }
+    async createCustomAgent(agentConfig) {
+        return this.client.post('/api/v2/custom-agents/agents', agentConfig);
     }
 
     // Send message to conversation

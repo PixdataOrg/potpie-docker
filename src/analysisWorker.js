@@ -87,133 +87,126 @@ class AnalysisWorker {
    * Process a single analysis job
    */
   async processJob(job) {
-    const { project_id, repo, branch, question, github_token } = job.data;
-    const room = `project_${project_id}`;
+      const { project_id, repo, branch, question, github_token } = job.data;
+      const room = `project_${project_id}`;
 
-    try {
-      console.log(`🔄 [WORKER] Processing job ${job.id} for project ${project_id}`);
-      console.log(`🔄 [WORKER] Job data:`, { project_id, repo, branch, question: question?.substring(0, 100) });
+      try {
+          console.log(`🔄 [WORKER] Processing job ${job.id} for project ${project_id}`);
+          this.emitJobUpdate(project_id, 'parsing', 'Repository parsing in progress...');
 
-      // Step 1: Emit parsing status
-      this.emitJobUpdate(project_id, 'parsing', 'Repository parsing in progress...');
+          // 🧩 Step 1: Wait for parsing to complete
+          console.log(`🔄 [WORKER] Waiting for parsing to complete...`);
+          const parsingResult = await this.potpieClient.waitForParsingComplete(project_id);
 
-      // Step 2: Wait for parsing to complete
-      console.log(`🔄 [WORKER] Waiting for parsing to complete for project ${project_id}...`);
-      const parsingResult = await this.potpieClient.waitForParsingComplete(project_id);
-      
-      console.log(`🔄 [WORKER] Parsing result:`, JSON.stringify(parsingResult, null, 2));
-      
-      if (!parsingResult.success) {
-        throw new Error(`Parsing failed: ${parsingResult.error.message}`);
-      }
-
-      // Step 3: Update status to ready
-      this.emitJobUpdate(project_id, 'ready', 'Parsing completed, starting conversations...');
-
-      // Step 4: Start conversation processing
-      this.emitJobUpdate(project_id, 'processing_conversations', 'Extracting knowledge graph and running conversations...');
-
-      console.log(`Starting conversation processing for project ${project_id}...`);
-
-      // Create conversation with codebase QnA agent
-      console.log(`🔄 [WORKER] Creating conversation for project ${project_id}...`);
-      const conversationResult = await this.potpieClient.createConversation(project_id, 'codebase_qna_agent');
-      
-      console.log(`🔄 [WORKER] Conversation result:`, JSON.stringify(conversationResult, null, 2));
-      
-      if (!conversationResult.success) {
-        console.warn(`⚠️ [WORKER] Failed to create conversation for project ${project_id}, proceeding with knowledge graph queries`);
-      }
-
-      // Extract data using knowledge graph tools
-      const commonTags = ['function', 'class', 'module', 'component', 'service', 'controller', 'model'];
-      console.log(`🔄 [WORKER] Requesting nodes from tags:`, commonTags);
-      const nodesResult = await this.potpieClient.getNodesFromTags(project_id, commonTags);
-      
-      console.log(`🔄 [WORKER] Nodes result:`, JSON.stringify(nodesResult, null, 2));
-      
-      let snippets = [];
-      
-      if (nodesResult.success && nodesResult.data.nodes) {
-        console.log(`🔄 [WORKER] Found ${nodesResult.data.nodes.length} nodes for project ${project_id}`);
-        
-        // Get code for each node (limit to first 50 to avoid timeout)
-        const nodesToProcess = nodesResult.data.nodes.slice(0, 50);
-        
-        for (const node of nodesToProcess) {
-          const codeResult = await this.potpieClient.getCodeFromNodeId(project_id, node.id);
-          
-          if (codeResult.success) {
-            snippets.push({
-              node_id: node.id,
-              file_path: node.file_path || 'unknown',
-              code: codeResult.data.code || '',
-              tags: node.tags || [],
-              description: node.description || '',
-              line_start: node.line_start || 0,
-              line_end: node.line_end || 0
-            });
+          if (!parsingResult.success) {
+              throw new Error(`Parsing failed: ${parsingResult.error.message}`);
           }
+
+          this.emitJobUpdate(project_id, 'ready', 'Parsing completed. Starting knowledge extraction...');
+
+          // 🧠 Step 2: Ensure the custom agent exists
+          console.log(`🔄 [WORKER] Ensuring repo_knowledge_extractor agent exists...`);
+          const agent = await this.potpieClient.ensureCustomAgent({
+              name: 'repo_knowledge_extractor',
+              description: 'Extracts nodes, code snippets and knowledge graph summaries for repositories.',
+              tools: ['get_nodes_from_tags', 'get_code_from_node_id', 'ask_knowledge_graph_queries']
+          });
+
+          if (!agent?.id) throw new Error(`Failed to create or fetch repo_knowledge_extractor agent`);
+
+          // 💬 Step 3: Create conversation with the agent
+          console.log(`🔄 [WORKER] Creating conversation for project ${project_id}...`);
+          const conversation = await this.potpieClient.createConversation(project_id, agent.id);
+
+          if (!conversation?.id) throw new Error(`Failed to create conversation for project ${project_id}`);
+
+          // 🧠 Step 4: Send message to agent to perform analysis
+          this.emitJobUpdate(project_id, 'processing', 'Running knowledge graph extraction via agent...');
+
+          const commonTags = ['function', 'class', 'module', 'component', 'service', 'controller', 'model'];
+
+          const userPrompt = `
+      Analizza la codebase corrente del progetto ${repo} (${branch}).
+      1. Usa get_nodes_from_tags con questi tag: ${JSON.stringify(commonTags)}.
+      2. Per i primi 50 nodi trovati, usa get_code_from_node_id per ottenere il codice sorgente.
+      3. Esegui ask_knowledge_graph_queries per rispondere alla domanda: "${question}".
+      4. Restituisci il risultato in formato JSON come segue:
+
+      {
+        "snippets": [{ "node_id": "...", "file_path": "...", "code": "...", "tags": [...], "description": "...", "line_start": 0, "line_end": 0 }],
+        "snippets_count": <number>,
+        "analysis_response": {...},
+        "metadata": {
+          "parsed_at": "<ISO date>",
+          "total_nodes_found": <number>,
+          "processed_nodes": <number>,
+          "repo": "${repo}",
+          "branch": "${branch}"
         }
       }
+    `;
 
-      // Ask knowledge graph query about the specific question
-      const queryResult = await this.potpieClient.askKnowledgeGraphQueries(project_id, question);
-      
-      let analysisResponse = null;
-      if (queryResult.success) {
-        analysisResponse = queryResult.data;
+          console.log(`🔄 [WORKER] Sending analysis request to agent...`);
+          const response = await this.potpieClient.sendMessage(conversation.id, {
+              role: 'user',
+              content: userPrompt
+          });
+
+          // 🧾 Step 5: Process agent output
+          const agentOutput = response?.data || {};
+          console.log(`✅ [WORKER] Agent output received:`, JSON.stringify(agentOutput, null, 2));
+
+          // Fallbacks per compatibilità
+          const snippets = agentOutput.snippets || [];
+          const analysisResponse = agentOutput.analysis_response || {};
+          const totalNodesFound = agentOutput.metadata?.total_nodes_found || snippets.length;
+
+          const vectorDbData = {
+              project_id,
+              repo,
+              branch,
+              question,
+              parsing_status: parsingResult.data.status,
+              snippets,
+              snippets_count: snippets.length,
+              analysis_response: analysisResponse,
+              metadata: {
+                  ...agentOutput.metadata,
+                  parsed_at: new Date().toISOString(),
+                  total_nodes_found: totalNodesFound,
+                  processed_nodes: snippets.length,
+                  has_github_token: !!github_token,
+                  processing_time_ms: Date.now() - new Date(job.timestamp).getTime(),
+                  job_id: job.id
+              }
+          };
+
+          console.log(`✅ [WORKER] Analysis completed for ${project_id}. Extracted ${snippets.length} snippets.`);
+
+          // Step 6: Emit final result
+          this.io.to(room).emit('analysis_complete', {
+              project_id,
+              status: 'finished',
+              data: vectorDbData,
+              message: 'Analysis completed successfully. Data ready for vector DB.',
+              timestamp: new Date().toISOString()
+          });
+
+          return vectorDbData;
+
+      } catch (error) {
+          console.error(`❌ [WORKER] Error processing analysis for project ${project_id}:`, error);
+
+          this.io.to(room).emit('analysis_error', {
+              project_id,
+              status: 'failed',
+              error: 'Analysis processing failed',
+              message: error.message,
+              timestamp: new Date().toISOString()
+          });
+
+          throw error;
       }
-
-      // Step 5: Compose final response for vector DB
-      const vectorDbData = {
-        project_id: project_id,
-        repo: repo,
-        branch: branch,
-        question: question,
-        parsing_status: parsingResult.data.status,
-        snippets: snippets,
-        snippets_count: snippets.length,
-        analysis_response: analysisResponse,
-        metadata: {
-          parsed_at: new Date().toISOString(),
-          total_nodes_found: nodesResult.success ? nodesResult.data.nodes?.length || 0 : 0,
-          processed_nodes: snippets.length,
-          has_github_token: !!github_token,
-          processing_time_ms: Date.now() - new Date(job.timestamp).getTime(),
-          job_id: job.id
-        }
-      };
-
-      console.log(`Analysis completed for project ${project_id}. Extracted ${snippets.length} code snippets.`);
-
-      // Step 6: Emit final result
-      this.io.to(room).emit('analysis_complete', {
-        project_id: project_id,
-        status: 'finished',
-        data: vectorDbData,
-        message: 'Analysis completed successfully. Data ready for vector DB.',
-        timestamp: new Date().toISOString()
-      });
-
-      // Return the result (BullMQ will store this as job result)
-      return vectorDbData;
-
-    } catch (error) {
-      console.error(`Error processing analysis for project ${project_id}:`, error);
-      
-      // Emit error via WebSocket
-      this.io.to(room).emit('analysis_error', {
-        project_id: project_id,
-        status: 'failed',
-        error: 'Analysis processing failed',
-        message: error.message,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Re-throw error so BullMQ can handle retries
-      throw error;
-    }
   }
 
   /**
