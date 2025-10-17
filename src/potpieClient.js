@@ -80,7 +80,7 @@ class PotpieClient {
         // Helper function to emit updates
         const emitUpdate = (status, message) => {
             if (io && emitUpdates) {
-                io.to(room).emit('parsing_update', {
+                io.to(room).emit('status_update', {
                     project_id: projectId,
                     status: status,
                     message: message,
@@ -169,7 +169,7 @@ class PotpieClient {
 
             return {
                 success: true,
-                data: response.data
+                id: response.data.conversation_id
             };
         } catch (error) {
             console.error('Potpie Create Conversation Error:', error.response?.data || error.message);
@@ -188,6 +188,7 @@ class PotpieClient {
     // Send message to conversation
     async sendMessage(conversationId, message) {
         try {
+            console.log('sending message to ', conversationId, 'message: ', message);
             const response = await this.client.post(`/api/v2/conversations/${conversationId}/messages`, {
                 message: message
             });
@@ -197,6 +198,7 @@ class PotpieClient {
                 data: response.data
             };
         } catch (error) {
+            console.log(error);
             console.error('Potpie Send Message Error:', error.response?.data || error.message);
 
             return {

@@ -107,7 +107,7 @@ class AnalysisWorker {
 
           // 💬 Step 3: Create conversation with the agent
           console.log(`🔄 [WORKER] Creating conversation for project ${project_id}...`);
-          const { success, data: conversation } = await this.potpieClient.createConversation(project_id);
+          const { success, id: conversationId } = await this.potpieClient.createConversation(project_id);
           if (!success) throw new Error(`Failed to create conversation for project ${project_id}`);
 
           // 🧠 Step 4: Send message to agent to perform analysis
@@ -137,7 +137,7 @@ class AnalysisWorker {
             `;
 
           console.log(`🔄 [WORKER] Sending analysis request to agent...`);
-          const response = await this.potpieClient.sendMessage(conversation.conversation_id, {
+          const response = await this.potpieClient.sendMessage(conversationId, {
               role: 'user',
               content: userPrompt
           });
