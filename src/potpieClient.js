@@ -72,21 +72,43 @@ class PotpieClient {
     }
 
     // Wait for parsing to complete
-    async waitForParsingComplete(projectId, maxWaitTime = 300000) { // 5 minutes max
+    async waitForParsingComplete(projectId, maxWaitTime = 300000, io = null, emitUpdates = false) { // 5 minutes max
         const startTime = Date.now();
         const pollInterval = 5000; // 5 seconds
+        const room = `project_${projectId}`;
+
+        // Helper function to emit updates
+        const emitUpdate = (status, message) => {
+            if (io && emitUpdates) {
+                io.to(room).emit('parsing_update', {
+                    project_id: projectId,
+                    status: status,
+                    message: message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        };
+
+        // Emit initial status
+        emitUpdate('parsing', 'Starting to monitor parsing progress...');
 
         while (Date.now() - startTime < maxWaitTime) {
             const statusResult = await this.getParsingStatus(projectId);
 
             if (!statusResult.success) {
+                emitUpdate('error', `Failed to get parsing status: ${statusResult.error.message}`);
                 return statusResult;
             }
 
             const status = statusResult.data.status;
             console.log(`Parsing status for project ${projectId}: ${status}`);
 
+            // Emit progress update
+            const progressMessage = this.getParsingStatusMessage(status);
+            emitUpdate(status, progressMessage);
+
             if (status === 'ready') {
+                emitUpdate('ready', 'Repository parsing completed successfully!');
                 return {
                     success: true,
                     data: statusResult.data
@@ -94,6 +116,7 @@ class PotpieClient {
             }
 
             if (status === 'failed' || status === 'error') {
+                emitUpdate('failed', `Parsing failed with status: ${status}`);
                 return {
                     success: false,
                     error: {
@@ -108,6 +131,7 @@ class PotpieClient {
             await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
 
+        emitUpdate('timeout', 'Parsing timeout - exceeded maximum wait time');
         return {
             success: false,
             error: {
@@ -116,6 +140,21 @@ class PotpieClient {
                 details: { projectId, maxWaitTime }
             }
         };
+    }
+
+    // Helper method to get user-friendly status messages
+    getParsingStatusMessage(status) {
+        const messages = {
+            'queued': 'Repository parsing is queued and waiting to start...',
+            'parsing': 'Repository parsing is in progress...',
+            'processing': 'Processing repository files and structure...',
+            'indexing': 'Building code index and knowledge graph...',
+            'ready': 'Repository parsing completed successfully!',
+            'failed': 'Repository parsing failed',
+            'error': 'An error occurred during parsing',
+            'timeout': 'Parsing operation timed out'
+        };
+        return messages[status] || `Parsing status: ${status}`;
     }
 
     // Create conversation with agent

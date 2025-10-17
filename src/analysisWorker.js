@@ -97,7 +97,7 @@ class AnalysisWorker {
 
           // 🧩 Step 1: Wait for parsing to complete
           console.log(`🔄 [WORKER] Waiting for parsing to complete...`);
-          const parsingResult = await this.potpieClient.waitForParsingComplete(project_id);
+          const parsingResult = await this.potpieClient.waitForParsingComplete(project_id, 300000, this.io, true);
 
           if (!parsingResult.success) {
               throw new Error(`Parsing failed: ${parsingResult.error.message}`);
@@ -108,8 +108,8 @@ class AnalysisWorker {
           // 💬 Step 3: Create conversation with the agent
           console.log(`🔄 [WORKER] Creating conversation for project ${project_id}...`);
           const conversation = await this.potpieClient.createConversation(project_id);
-
-          if (!conversation?.id) throw new Error(`Failed to create conversation for project ${project_id}`);
+          console.log(conversation);
+          if (!conversation.success) throw new Error(`Failed to create conversation for project ${project_id}`);
 
           // 🧠 Step 4: Send message to agent to perform analysis
           this.emitJobUpdate(project_id, 'processing', 'Running knowledge graph extraction via agent...');
