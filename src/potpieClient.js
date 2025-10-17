@@ -147,6 +147,8 @@ class PotpieClient {
         const messages = {
             'queued': 'Repository parsing is queued and waiting to start...',
             'parsing': 'Repository parsing is in progress...',
+            'cloned': 'Repository parsing operation in queue...',
+            'parsed': 'Repository parsed, now finalizing...',
             'processing': 'Processing repository files and structure...',
             'indexing': 'Building code index and knowledge graph...',
             'ready': 'Repository parsing completed successfully!',

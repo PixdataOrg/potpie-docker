@@ -107,9 +107,8 @@ class AnalysisWorker {
 
           // 💬 Step 3: Create conversation with the agent
           console.log(`🔄 [WORKER] Creating conversation for project ${project_id}...`);
-          const conversation = await this.potpieClient.createConversation(project_id);
-          console.log(conversation);
-          if (!conversation.success) throw new Error(`Failed to create conversation for project ${project_id}`);
+          const { success, data: conversation } = await this.potpieClient.createConversation(project_id);
+          if (!success) throw new Error(`Failed to create conversation for project ${project_id}`);
 
           // 🧠 Step 4: Send message to agent to perform analysis
           this.emitJobUpdate(project_id, 'processing', 'Running knowledge graph extraction via agent...');
@@ -138,7 +137,7 @@ class AnalysisWorker {
             `;
 
           console.log(`🔄 [WORKER] Sending analysis request to agent...`);
-          const response = await this.potpieClient.sendMessage(conversation.id, {
+          const response = await this.potpieClient.sendMessage(conversation.conversation_id, {
               role: 'user',
               content: userPrompt
           });
@@ -175,6 +174,8 @@ class AnalysisWorker {
           console.log(`✅ [WORKER] Analysis completed for ${project_id}. Extracted ${snippets.length} snippets.`);
 
           // Step 6: Emit final result
+          this.emitJobUpdate(project_id, 'finished', 'Job finished');
+
           this.io.to(room).emit('analysis_complete', {
               project_id,
               status: 'finished',
