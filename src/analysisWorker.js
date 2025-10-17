@@ -104,19 +104,9 @@ class AnalysisWorker {
 
           this.emitJobUpdate(project_id, 'ready', 'Parsing completed. Starting knowledge extraction...');
 
-          // 🧠 Step 2: Ensure the custom agent exists
-          console.log(`🔄 [WORKER] Ensuring repo_knowledge_extractor agent exists...`);
-          const agent = await this.potpieClient.ensureCustomAgent({
-              name: 'repo_knowledge_extractor',
-              description: 'Extracts nodes, code snippets and knowledge graph summaries for repositories.',
-              tools: ['get_nodes_from_tags', 'get_code_from_node_id', 'ask_knowledge_graph_queries']
-          });
-
-          if (!agent?.id) throw new Error(`Failed to create or fetch repo_knowledge_extractor agent`);
-
           // 💬 Step 3: Create conversation with the agent
           console.log(`🔄 [WORKER] Creating conversation for project ${project_id}...`);
-          const conversation = await this.potpieClient.createConversation(project_id, agent.id);
+          const conversation = await this.potpieClient.createConversation(project_id);
 
           if (!conversation?.id) throw new Error(`Failed to create conversation for project ${project_id}`);
 
@@ -126,25 +116,25 @@ class AnalysisWorker {
           const commonTags = ['function', 'class', 'module', 'component', 'service', 'controller', 'model'];
 
           const userPrompt = `
-      Analizza la codebase corrente del progetto ${repo} (${branch}).
-      1. Usa get_nodes_from_tags con questi tag: ${JSON.stringify(commonTags)}.
-      2. Per i primi 50 nodi trovati, usa get_code_from_node_id per ottenere il codice sorgente.
-      3. Esegui ask_knowledge_graph_queries per rispondere alla domanda: "${question}".
-      4. Restituisci il risultato in formato JSON come segue:
-
-      {
-        "snippets": [{ "node_id": "...", "file_path": "...", "code": "...", "tags": [...], "description": "...", "line_start": 0, "line_end": 0 }],
-        "snippets_count": <number>,
-        "analysis_response": {...},
-        "metadata": {
-          "parsed_at": "<ISO date>",
-          "total_nodes_found": <number>,
-          "processed_nodes": <number>,
-          "repo": "${repo}",
-          "branch": "${branch}"
-        }
-      }
-    `;
+              Analizza la codebase corrente del progetto ${repo} (${branch}).
+              1. Usa get_nodes_from_tags con questi tag: ${JSON.stringify(commonTags)}.
+              2. Per i primi 50 nodi trovati, usa get_code_from_node_id per ottenere il codice sorgente.
+              3. Esegui ask_knowledge_graph_queries per rispondere alla domanda: "${question}".
+              4. Restituisci il risultato in formato JSON come segue:
+        
+              {
+                "snippets": [{ "node_id": "...", "file_path": "...", "code": "...", "tags": [...], "description": "...", "line_start": 0, "line_end": 0 }],
+                "snippets_count": <number>,
+                "analysis_response": {...},
+                "metadata": {
+                  "parsed_at": "<ISO date>",
+                  "total_nodes_found": <number>,
+                  "processed_nodes": <number>,
+                  "repo": "${repo}",
+                  "branch": "${branch}"
+                }
+              }
+            `;
 
           console.log(`🔄 [WORKER] Sending analysis request to agent...`);
           const response = await this.potpieClient.sendMessage(conversation.id, {

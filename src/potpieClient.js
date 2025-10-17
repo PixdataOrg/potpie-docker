@@ -119,11 +119,11 @@ class PotpieClient {
     }
 
     // Create conversation with agent
-    async createConversation(projectId, agentType = 'codebase_qna_agent') {
+    async createConversation(projectId) {
         try {
             const response = await this.client.post('/api/v2/conversations', {
                 project_ids: [projectId],
-                agent_ids: [agentType]
+                agent_ids: [process.env.CUSTOM_AGENT_ID]
             });
 
             return {
@@ -142,29 +142,6 @@ class PotpieClient {
                 }
             };
         }
-    }
-
-    async getAgentByName(name) {
-        const res = await this.client.get('/api/v2/custom-agents/agents');
-        if (!res?.data) return null;
-        return res.data.find(a => a.name === name);
-    }
-
-    // Verifica se l'agente esiste, altrimenti lo crea
-    async ensureCustomAgent(agentConfig) {
-        const existing = await this.getAgentByName(agentConfig.name);
-        if (existing) {
-            console.log(`ℹ️ [POTPIE] Found existing agent: ${agentConfig.name}`);
-            return existing;
-        }
-
-        console.log(`🆕 [POTPIE] Creating new agent: ${agentConfig.name}`);
-        const created = await this.createCustomAgent(agentConfig);
-        return created.data;
-    }
-
-    async createCustomAgent(agentConfig) {
-        return this.client.post('/api/v2/custom-agents/agents', agentConfig);
     }
 
     // Send message to conversation

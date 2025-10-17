@@ -15,6 +15,7 @@ data:
   QUEUE_NAME: "potpie-analysis"
   LOG_LEVEL: "info"
   REQUEST_TIMEOUT: "30000"
+  CUSTOM_AGENT_ID: "fe5f00ae-6737-4953-8fb6-8b71153da4eb"
 ---
 apiVersion: apps/v1
 kind: Deployment
