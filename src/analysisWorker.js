@@ -100,7 +100,7 @@ class AnalysisWorker {
           const parsingResult = await this.potpieClient.waitForParsingComplete(project_id, 300000, this.io, true);
 
           if (!parsingResult.success) {
-              throw new Error(`Parsing failed: ${parsingResult.error.message}`);
+              throw new Error(`Parsing failed: ${parsingResult.error.details}`);
           }
 
           this.emitJobUpdate(project_id, 'ready', 'Parsing completed. Starting knowledge extraction...');
