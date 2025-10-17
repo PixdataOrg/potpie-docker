@@ -12,7 +12,8 @@ class AnalysisWorker {
     this.queueName = process.env.QUEUE_NAME || 'potpie-analysis';
     this.maxConcurrency = parseInt(process.env.MAX_CONCURRENT_JOBS) || 5;
     this.maxRetries = parseInt(process.env.MAX_RETRIES) || 3;
-    
+
+    console.log('CUSTOM_AGENT_ID: ', process.env.CUSTOM_AGENT_ID);
     this.worker = null;
   }
 
