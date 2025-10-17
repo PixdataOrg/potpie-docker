@@ -115,13 +115,8 @@ class AnalysisWorker {
 
           const commonTags = ['function', 'class', 'module', 'component', 'service', 'controller', 'model'];
 
-          const userPrompt = `
-              Analizza la codebase corrente del progetto ${repo} (${branch}).
-              1. Usa get_nodes_from_tags con questi tag: ${JSON.stringify(commonTags)}.
-              2. Per i primi 50 nodi trovati, usa get_code_from_node_id per ottenere il codice sorgente.
-              3. Esegui ask_knowledge_graph_queries per rispondere alla domanda: "${question}".
-              4. Restituisci il risultato in formato JSON come segue:
-        
+          const userPrompt = `${question}.
+              Return the result in the following format:        
               {
                 "snippets": [{ "node_id": "...", "file_path": "...", "code": "...", "tags": [...], "description": "...", "line_start": 0, "line_end": 0 }],
                 "snippets_count": <number>,
@@ -142,7 +137,6 @@ class AnalysisWorker {
               content: userPrompt
           });
 
-          console.log(response);
           // 🧾 Step 5: Process agent output
           const agentOutput = response?.data || {};
           console.log(`✅ [WORKER] Agent output received:`, JSON.stringify(agentOutput, null, 2));

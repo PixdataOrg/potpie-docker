@@ -70,9 +70,12 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Request logging middleware
+// Request logging middleware - exclude health check endpoints to avoid spam
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  // Skip logging for health check endpoints to avoid continuous log spam
+  if (req.path !== '/' && req.path !== '/health') {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  }
   next();
 });
 
@@ -159,7 +162,7 @@ app.post('/analyze', async (req, res) => {
 
     const repoName = repo;
     const branchName = branch || 'main';
-    const analysisQuestion = question || 'Explain the repository architecture';
+    const analysisQuestion = question || 'Analyze and explain the repository architecture, return the full set of snippet for the full project architecture knowledge';
 
     console.log(`Starting analysis for repository: ${repoName}, branch: ${branchName}`);
 

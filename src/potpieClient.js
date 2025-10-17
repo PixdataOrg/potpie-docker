@@ -191,6 +191,7 @@ class PotpieClient {
             console.log('sending message to ', conversationId, 'message: ', message);
             const response = await this.client.post(`/api/v2/conversations/${conversationId}/message`, message);
 
+            console.log(response.data);
             return {
                 success: true,
                 data: response.data
