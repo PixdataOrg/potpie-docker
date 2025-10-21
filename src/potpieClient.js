@@ -72,7 +72,7 @@ class PotpieClient {
     }
 
     // Wait for parsing to complete
-    async waitForParsingComplete(projectId, maxWaitTime = 300000, io = null, emitUpdates = false) { // 5 minutes max
+    async waitForParsingComplete(projectId, maxWaitTime = 300000, io = null, emitUpdates = true) { // 5 minutes max
         const startTime = Date.now();
         const pollInterval = 5000; // 5 seconds
         const room = `project_${projectId}`;

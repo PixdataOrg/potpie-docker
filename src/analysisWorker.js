@@ -123,7 +123,7 @@ class AnalysisWorker {
             `;
 
           console.log(`🔄 [WORKER] Sending analysis request to agent...`);
-          const response = await this.potpieClient.sendMessage(project_id, { content: userPrompt });
+          const response = await this.potpieClient.sendMessage(project_id, userPrompt);
           console.log(response);
           if (!success) throw new Error(`Failed to create conversation for project ${project_id}`);
 
