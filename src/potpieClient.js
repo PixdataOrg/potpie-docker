@@ -160,44 +160,19 @@ class PotpieClient {
     }
 
     // Create conversation with agent
-    async createConversation(projectId) {
+    async sendMessage(projectId, message) {
         try {
-            const response = await this.client.post('/api/v2/conversations', {
-                project_ids: [projectId],
-                agent_ids: [process.env.CUSTOM_AGENT_ID]
+            const response = await this.client.post(`/api/v2/project/${projectId}/message`, {
+                agent_id: process.env.CUSTOM_AGENT_ID,
+                content: message,
             });
 
             return {
                 success: true,
-                id: response.data.conversation_id
+                message: response.message
             };
         } catch (error) {
             console.error('Potpie Create Conversation Error:', error.response?.data || error.message);
-
-            return {
-                success: false,
-                error: {
-                    message: error.response?.data?.message || error.message,
-                    status: error.response?.status || 500,
-                    details: error.response?.data || null
-                }
-            };
-        }
-    }
-
-    // Send message to conversation
-    async sendMessage(conversationId, message) {
-        try {
-            console.log('sending message to ', conversationId, 'message: ', message);
-            const response = await this.client.post(`/api/v1/conversations/${conversationId}/message`, message);
-
-            return {
-                success: true,
-                data: response.data
-            };
-        } catch (error) {
-            console.log(error);
-            console.error('Potpie Send Message Error:', error.response?.data || error.message);
 
             return {
                 success: false,

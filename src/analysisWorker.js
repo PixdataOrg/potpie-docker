@@ -105,16 +105,7 @@ class AnalysisWorker {
 
           this.emitJobUpdate(project_id, 'ready', 'Parsing completed. Starting knowledge extraction...');
 
-          // 💬 Step 3: Create conversation with the agent
-          console.log(`🔄 [WORKER] Creating conversation for project ${project_id}...`);
-          const { success, id: conversationId } = await this.potpieClient.createConversation(project_id);
-          if (!success) throw new Error(`Failed to create conversation for project ${project_id}`);
-
-          // 🧠 Step 4: Send message to agent to perform analysis
-          this.emitJobUpdate(project_id, 'processing', 'Running knowledge graph extraction via agent...');
-
-          const commonTags = ['function', 'class', 'module', 'component', 'service', 'controller', 'model'];
-
+          // 🧠 Step 3: Send message to agent to perform analysis
           const userPrompt = `${question}.
               Answer only with the result formatted in a JSON structure like following:        
               {
@@ -132,10 +123,12 @@ class AnalysisWorker {
             `;
 
           console.log(`🔄 [WORKER] Sending analysis request to agent...`);
-          const response = await this.potpieClient.sendMessage(conversationId, { content: userPrompt });
+          const response = await this.potpieClient.sendMessage(project_id, { content: userPrompt });
+          console.log(response);
+          if (!success) throw new Error(`Failed to create conversation for project ${project_id}`);
 
-          // 🧾 Step 5: Process agent output
-          const agentOutput = response?.data || {};
+          // 🧾 Step 4: Process agent output
+          const agentOutput = response?.message || {};
           console.log(`✅ [WORKER] Agent output received:`, JSON.stringify(agentOutput, null, 2));
 
           // Fallbacks per compatibilità
@@ -165,7 +158,7 @@ class AnalysisWorker {
 
           console.log(`✅ [WORKER] Analysis completed for ${project_id}. Extracted ${snippets.length} snippets.`);
 
-          // Step 6: Emit final result
+          // Step 5: Emit final result
           this.emitJobUpdate(project_id, 'finished', 'Job finished');
 
           this.io.to(room).emit('analysis_complete', {
