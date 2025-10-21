@@ -163,7 +163,7 @@ class PotpieClient {
     async sendMessage(projectId, message) {
         try {
             const response = await this.client.post(`/api/v2/project/${projectId}/message`, {
-                agent_id: process.env.CUSTOM_AGENT_ID,
+                //agent_id: process.env.CUSTOM_AGENT_ID,
                 content: message,
             });
 
