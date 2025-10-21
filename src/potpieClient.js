@@ -189,13 +189,14 @@ class PotpieClient {
     async sendMessage(conversationId, message) {
         try {
             console.log('sending message to ', conversationId, 'message: ', message);
-            const response = await this.client.post(`/api/v2/conversations/${conversationId}/message`, message);
+            const response = await this.client.post(`/api/v1/conversations/${conversationId}/message`, message);
 
             return {
                 success: true,
                 data: response.data
             };
         } catch (error) {
+            console.log(error);
             console.error('Potpie Send Message Error:', error.response?.data || error.message);
 
             return {
