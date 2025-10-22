@@ -167,6 +167,7 @@ class PotpieClient {
                 content: message,
             });
 
+            console.log(response);
             return {
                 success: true,
                 message: response.message
