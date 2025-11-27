@@ -124,11 +124,11 @@ class AnalysisWorker {
 
           console.log(`🔄 [WORKER] Sending analysis request to agent...`);
           const response = await this.potpieClient.sendMessage(project_id, userPrompt);
-          console.log(response);
+          console.log(response.data);
           if (!success) throw new Error(`Failed to create conversation for project ${project_id}`);
 
           // 🧾 Step 4: Process agent output
-          const agentOutput = response?.message || {};
+          const agentOutput = response?.data || {};
           console.log(`✅ [WORKER] Agent output received:`, JSON.stringify(agentOutput, null, 2));
 
           // Fallbacks per compatibilità

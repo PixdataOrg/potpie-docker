@@ -5,7 +5,7 @@ metadata:
   namespace: default
 data:
   PORT: "8080"
-  REDIS_HOST: "valkey.valkey.svc.cluster.local"
+  REDIS_HOST: "redis-service.redis.svc.cluster.local"
   REDIS_PORT: "6379"
   REDIS_DB: "0"
   REDIS_TLS_ENABLED: "false"
