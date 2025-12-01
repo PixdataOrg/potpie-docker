@@ -126,7 +126,7 @@ class AnalysisWorker {
           const response = await this.potpieClient.sendMessage(project_id, userPrompt);
 
           console.log(response.data);
-          if (!response.success) throw new Error(`Failed to create conversation for project ${project_id}`);
+          if (!response.success) throw new Error(`Failed to create conversation for project ${project_id}. Error: ${JSON.stringify(response.error)}`);
 
           // 🧾 Step 4: Process agent output
           const agentOutput = response?.data || {};

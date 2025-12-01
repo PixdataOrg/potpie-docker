@@ -52,7 +52,7 @@ class PotpieClient {
     async getParsingStatus(projectId) {
         try {
             const response = await this.client.get(`/api/v2/parsing-status/${projectId}`);
-
+            console.log(response);
             return {
                 success: true,
                 data: response.data
@@ -168,10 +168,9 @@ class PotpieClient {
                 content: message,
             });
 
-            console.log(response);
             return {
                 success: true,
-                message: response.message
+                data: response.data
             };
         } catch (error) {
             console.error('Potpie Create Conversation Error:', error.response?.data || error.message);
