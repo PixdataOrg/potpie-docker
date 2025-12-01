@@ -97,10 +97,10 @@ class AnalysisWorker {
 
           // 🧩 Step 1: Wait for parsing to complete
           console.log(`🔄 [WORKER] Waiting for parsing to complete...`);
-          const parsingResult = await this.potpieClient.waitForParsingComplete(project_id, 300000, this.io, true);
+          const parsingResult = await this.potpieClient.waitForParsingComplete(project_id, 600000, this.io, true);
 
           if (!parsingResult.success) {
-              throw new Error(`Parsing failed: ${parsingResult.error.details}`);
+              throw new Error(`Parsing failed: ${JSON.stringify(parsingResult.error.details)}`);
           }
 
           this.emitJobUpdate(project_id, 'ready', 'Parsing completed. Starting knowledge extraction...');
@@ -129,7 +129,7 @@ class AnalysisWorker {
           if (!response.success) throw new Error(`Failed to create conversation for project ${project_id}. Error: ${JSON.stringify(response.error)}`);
 
           // 🧾 Step 4: Process agent output
-          const agentOutput = response?.data || {};
+          const agentOutput = extractJsonFromMessage(response?.data) || {};
           console.log(`✅ [WORKER] Agent output received:`, JSON.stringify(agentOutput, null, 2));
 
           // Fallbacks per compatibilità
@@ -198,6 +198,42 @@ class AnalysisWorker {
       message: message,
       timestamp: new Date().toISOString()
     });
+  }
+
+  extractJsonFromMessage(message: string): any | null {
+    if (!message) return null;
+
+    // 1. Extract code-fenced JSON inside ```json ... ```
+    const fenceRegex = /```json\s*([\s\S]*?)```/i;
+    const fencedMatch = message.match(fenceRegex);
+
+    let jsonString: string | null = null;
+
+    if (fencedMatch && fencedMatch[1]) {
+      jsonString = fencedMatch[1];
+    } else {
+      // fallback: try to extract first JSON-like structure from message
+      const looseJsonRegex = /\{[\s\S]*\}/;
+      const looseMatch = message.match(looseJsonRegex);
+      if (looseMatch) jsonString = looseMatch[0];
+    }
+
+    if (!jsonString) {
+      console.warn("⚠️ No JSON found in message");
+      return null;
+    }
+
+    try {
+      // Clean invisible characters
+      jsonString = jsonString.trim();
+
+      // Parse JSON safely
+      return JSON.parse(jsonString);
+    } catch (err) {
+      console.error("❌ Failed to parse JSON:", err);
+      console.error("Raw JSON string:", jsonString);
+      return null;
+    }
   }
 }
 
