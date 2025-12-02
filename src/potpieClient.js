@@ -89,9 +89,6 @@ class PotpieClient {
             }
         };
 
-        // Emit initial status
-        emitUpdate('parsing', 'Starting to monitor parsing progress...');
-
         while (Date.now() - startTime < maxWaitTime) {
             const statusResult = await this.getParsingStatus(projectId);
 
