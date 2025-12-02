@@ -106,24 +106,8 @@ class AnalysisWorker {
           this.emitJobUpdate(project_id, 'ready', 'Parsing completed. Starting knowledge extraction...');
 
           // 🧠 Step 3: Send message to agent to perform analysis
-          const userPrompt = `${question}.
-              Answer only with the result formatted in a JSON structure like following:        
-              {
-                "snippets": [{ "node_id": "...", "file_path": "...", "code": "...", "tags": [...], "description": "...", "line_start": 0, "line_end": 0 }],
-                "snippets_count": <number>,
-                "analysis_response": {...},
-                "metadata": {
-                  "parsed_at": "<ISO date>",
-                  "total_nodes_found": <number>,
-                  "processed_nodes": <number>,
-                  "repo": "${repo}",
-                  "branch": "${branch}"
-                }
-              }
-            `;
-
           console.log(`🔄 [WORKER] Sending analysis request to agent...`);
-          const response = await this.potpieClient.sendMessage(project_id, userPrompt);
+          const response = await this.potpieClient.sendMessage(project_id, question);
 
           console.log(response.data);
           if (!response.success) throw new Error(`Failed to create conversation for project ${project_id}. Error: ${JSON.stringify(response.error)}`);
