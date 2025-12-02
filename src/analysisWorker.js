@@ -129,7 +129,7 @@ class AnalysisWorker {
           if (!response.success) throw new Error(`Failed to create conversation for project ${project_id}. Error: ${JSON.stringify(response.error)}`);
 
           // 🧾 Step 4: Process agent output
-          const agentOutput = extractJsonFromMessage(response?.data) || {};
+          const agentOutput = this.extractJsonFromMessage(response?.data) || {};
           console.log(`✅ [WORKER] Agent output received:`, JSON.stringify(agentOutput, null, 2));
 
           // Fallbacks per compatibilità

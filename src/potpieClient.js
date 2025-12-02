@@ -95,7 +95,6 @@ class PotpieClient {
         while (Date.now() - startTime < maxWaitTime) {
             const statusResult = await this.getParsingStatus(projectId);
 
-            console.log(statusResult);
             if (!statusResult.success) {
                 emitUpdate('error', `Failed to get parsing status: ${statusResult.error.message}`);
                 return statusResult;
