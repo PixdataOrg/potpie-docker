@@ -200,14 +200,14 @@ class AnalysisWorker {
     });
   }
 
-  extractJsonFromMessage(message: string): any | null {
+  extractJsonFromMessage(message) {
     if (!message) return null;
 
     // 1. Extract code-fenced JSON inside ```json ... ```
     const fenceRegex = /```json\s*([\s\S]*?)```/i;
     const fencedMatch = message.match(fenceRegex);
 
-    let jsonString: string | null = null;
+    let jsonString = null;
 
     if (fencedMatch && fencedMatch[1]) {
       jsonString = fencedMatch[1];
