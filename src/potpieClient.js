@@ -52,7 +52,7 @@ class PotpieClient {
     async getParsingStatus(projectId) {
         try {
             const response = await this.client.get(`/api/v2/parsing-status/${projectId}`);
-            console.log(response);
+
             return {
                 success: true,
                 data: response.data

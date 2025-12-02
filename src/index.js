@@ -162,7 +162,7 @@ app.post('/analyze', async (req, res) => {
 
     const repoName = repo;
     const branchName = branch || 'main';
-    const analysisQuestion = question || 'Analyze and explain the repository architecture, return the full set of snippet for the full project architecture knowledge, analyze every node and provide a rich "analysis_response" result';
+    const analysisQuestion = question || 'Analyze and explain the repository architecture, return the full set of snippet for the full project architecture knowledge, analyze every node and provide a rich and complete "analysis_response" result';
 
     console.log(`Starting analysis for repository: ${repoName}, branch: ${branchName}`);
 

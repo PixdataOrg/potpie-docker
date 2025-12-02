@@ -200,10 +200,10 @@ class AnalysisWorker {
     });
   }
 
-  extractJsonFromMessage(message) {
+  extractJsonFromMessage(data) {
+    const message = data.message;
     if (!message) return null;
 
-    // 1. Extract code-fenced JSON inside ```json ... ```
     const fenceRegex = /```json\s*([\s\S]*?)```/i;
     const fencedMatch = message.match(fenceRegex);
 
@@ -212,7 +212,6 @@ class AnalysisWorker {
     if (fencedMatch && fencedMatch[1]) {
       jsonString = fencedMatch[1];
     } else {
-      // fallback: try to extract first JSON-like structure from message
       const looseJsonRegex = /\{[\s\S]*\}/;
       const looseMatch = message.match(looseJsonRegex);
       if (looseMatch) jsonString = looseMatch[0];
@@ -223,15 +222,19 @@ class AnalysisWorker {
       return null;
     }
 
-    try {
-      // Clean invisible characters
-      jsonString = jsonString.trim();
+    let cleaned = jsonString
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("//"))
+      .join("\n");
 
-      // Parse JSON safely
-      return JSON.parse(jsonString);
+    cleaned = cleaned.replace(/,\s*([}\]])/g, "$1");
+    cleaned = cleaned.trim();
+
+    try {
+      return JSON.parse(cleaned);
     } catch (err) {
       console.error("❌ Failed to parse JSON:", err);
-      console.error("Raw JSON string:", jsonString);
+      console.error("Cleaned JSON was:\n", cleaned);
       return null;
     }
   }
