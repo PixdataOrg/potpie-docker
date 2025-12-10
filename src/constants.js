@@ -29,7 +29,7 @@ JSON SCHEMA (STRICT — DO NOT MODIFY THE STRUCTURE):
     }
   ],
   "snippets_count": 0,
-  "analysis_response": {},
+  "analysis_response": {<here put a json with a brief analysis of the snippets>},
   "metadata": {
     "parsed_at": "<ISO date>",
     "total_nodes_found": "number",
