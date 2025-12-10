@@ -153,9 +153,7 @@ app.post('/sendMessage', async (req, res) => {
 
     const data = analysisWorker.processResponse(projectId, messageResponse, repo, branch);
 
-    const response = {data, status: 'finished'};
-    console.log(response);
-    return response;
+    res.json({ data, status: 'finished' });
   } catch (err) {
     console.error('sendMessage endpoint error:', err);
     res.status(500).json({
