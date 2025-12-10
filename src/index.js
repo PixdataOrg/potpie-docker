@@ -149,7 +149,7 @@ app.post('/sendMessage', async (req, res) => {
     }
 
     const messageResponse = await potpieClient.sendMessage(projectId, questionPrompt);
-    if (!messageResponse.success) throw new Error(`Failed to create conversation for project ${projectId}. Error: ${JSON.stringify(response.error)}`);
+    if (!messageResponse.success) throw new Error(`Failed to create conversation for project ${projectId}. Error: ${JSON.stringify(messageResponse.error)}`);
 
     const data = analysisWorker.processResponse(projectId, messageResponse, repo, branch);
 
