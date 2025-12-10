@@ -139,9 +139,7 @@ class AnalysisWorker {
     });
   }
 
-  processResponse(project_id, response, repo, branch, job?) {
-    const room = `project_${project_id}`;
-
+  processResponse(project_id, response, repo, branch, job = null) {
     if (!response.success) throw new Error(`Failed to create conversation for project ${project_id}. Error: ${JSON.stringify(response.error)}`);
 
     const agentOutput = this.extractJsonFromMessage(response?.data) || {};
@@ -174,6 +172,8 @@ class AnalysisWorker {
 
     if (job) {
       // Step 5: Emit final result
+      const room = `project_${project_id}`;
+      
       this.emitJobUpdate(project_id, 'finished', 'Job finished');
 
       this.io.to(room).emit('analysis_complete', {
