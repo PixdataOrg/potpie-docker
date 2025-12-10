@@ -147,9 +147,8 @@ app.post('/sendMessage', async (req, res) => {
         }
       });
     }
-    console.log('ECCOMI');
 
-    const messageResponse = await this.potpieClient.sendMessage(projectId, questionPrompt);
+    const messageResponse = await potpieClient.sendMessage(projectId, questionPrompt);
     if (!messageResponse.success) throw new Error(`Failed to create conversation for project ${projectId}. Error: ${JSON.stringify(response.error)}`);
 
     const data = analysisWorker.processResponse(projectId, messageResponse, repo, branch);
@@ -163,7 +162,7 @@ app.post('/sendMessage', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Internal server error during sendMessage process',
-      message: error.message,
+      message: err.message,
       timestamp: new Date().toISOString()
     });
   }
