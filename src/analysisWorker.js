@@ -171,6 +171,7 @@ class AnalysisWorker {
     console.log(`✅ [WORKER] Analysis completed for ${project_id}. Extracted ${snippets.length} snippets.`);
 
     if (job) {
+      console.log('ciao test');
       // Step 5: Emit final result
       const room = `project_${project_id}`;
 
