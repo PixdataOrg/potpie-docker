@@ -109,53 +109,8 @@ class AnalysisWorker {
           console.log(`🔄 [WORKER] Sending analysis request to agent...`);
           const response = await this.potpieClient.sendMessage(project_id, question);
 
-          console.log(response.data);
-          if (!response.success) throw new Error(`Failed to create conversation for project ${project_id}. Error: ${JSON.stringify(response.error)}`);
-
           // 🧾 Step 4: Process agent output
-          const agentOutput = this.extractJsonFromMessage(response?.data) || {};
-          console.log(`✅ [WORKER] Agent output received:`, JSON.stringify(agentOutput, null, 2));
-
-          // Fallbacks per compatibilità
-          const snippets = agentOutput.snippets || [];
-          const analysisResponse = agentOutput.analysis_response || {};
-          const totalNodesFound = agentOutput.metadata?.total_nodes_found || snippets.length;
-
-          const vectorDbData = {
-              project_id,
-              repo,
-              branch,
-              question,
-              parsing_status: parsingResult.data.status,
-              snippets,
-              snippets_count: snippets.length,
-              analysis_response: analysisResponse,
-              metadata: {
-                  ...agentOutput.metadata,
-                  parsed_at: new Date().toISOString(),
-                  total_nodes_found: totalNodesFound,
-                  processed_nodes: snippets.length,
-                  has_github_token: !!github_token,
-                  processing_time_ms: Date.now() - new Date(job.timestamp).getTime(),
-                  job_id: job.id
-              }
-          };
-
-          console.log(`✅ [WORKER] Analysis completed for ${project_id}. Extracted ${snippets.length} snippets.`);
-
-          // Step 5: Emit final result
-          this.emitJobUpdate(project_id, 'finished', 'Job finished');
-
-          this.io.to(room).emit('analysis_complete', {
-              project_id,
-              status: 'finished',
-              data: vectorDbData,
-              message: 'Analysis completed successfully. Data ready for vector DB.',
-              timestamp: new Date().toISOString()
-          });
-
-          return vectorDbData;
-
+          return this.processResponse(project_id, response, repo, branch, job);
       } catch (error) {
           console.error(`❌ [WORKER] Error processing analysis for project ${project_id}:`, error);
 
@@ -182,6 +137,55 @@ class AnalysisWorker {
       message: message,
       timestamp: new Date().toISOString()
     });
+  }
+
+  processResponse(project_id, response, repo, branch, job?) {
+    const room = `project_${project_id}`;
+
+    if (!response.success) throw new Error(`Failed to create conversation for project ${project_id}. Error: ${JSON.stringify(response.error)}`);
+
+    const agentOutput = this.extractJsonFromMessage(response?.data) || {};
+    console.log(`✅ [WORKER] Agent output received:`, JSON.stringify(agentOutput, null, 2));
+
+    // Fallbacks per compatibilità
+    const snippets = agentOutput.snippets || [];
+    const analysisResponse = agentOutput.analysis_response || {};
+    const totalNodesFound = agentOutput.metadata?.total_nodes_found || snippets.length;
+
+    const vectorDbData = {
+      project_id,
+      repo,
+      branch,
+      snippets,
+      snippets_count: snippets.length,
+      analysis_response: analysisResponse,
+      metadata: {
+        ...agentOutput.metadata,
+        parsed_at: new Date().toISOString(),
+        total_nodes_found: totalNodesFound,
+        processed_nodes: snippets.length,
+        has_github_token: true,
+        processing_time_ms: Date.now() - new Date(job?.timestamp).getTime(),
+        job_id: job?.id
+      }
+    };
+
+    console.log(`✅ [WORKER] Analysis completed for ${project_id}. Extracted ${snippets.length} snippets.`);
+
+    if (job) {
+      // Step 5: Emit final result
+      this.emitJobUpdate(project_id, 'finished', 'Job finished');
+
+      this.io.to(room).emit('analysis_complete', {
+        project_id,
+        status: 'finished',
+        data: vectorDbData,
+        message: 'Analysis completed successfully. Data ready for vector DB.',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    return vectorDbData;
   }
 
   extractJsonFromMessage(data) {

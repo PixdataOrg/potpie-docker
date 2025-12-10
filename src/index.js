@@ -135,6 +135,39 @@ app.get('/health', async (req, res) => {
   }
 });
 
+app.post('/sendMessage', async (req, res) => {
+  try {
+    const { projectId, repo, branch } = req.body;
+
+    if (!projectId) {
+      return res.status(400).json({
+        error: 'Missing required parameter: projectId',
+        example: {
+          projectId: "XXXXXXXXXXXX",
+        }
+      });
+    }
+
+    const messageResponse = await this.potpieClient.sendMessage(projectId, questionPrompt);
+    if (!messageResponse.success) throw new Error(`Failed to create conversation for project ${projectId}. Error: ${JSON.stringify(response.error)}`);
+
+    const data = analysisWorker.processResponse(projectId, messageResponse, repo, branch);
+
+    return {
+      data,
+      status: 'finished',
+    };
+  } catch (err) {
+    console.error('sendMessage endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during sendMessage process',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+})
+
 // Repository analysis endpoint - Uses BullMQ Queue
 app.post('/analyze', async (req, res) => {
   try {
