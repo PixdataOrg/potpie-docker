@@ -195,7 +195,7 @@ app.post('/analyze', async (req, res) => {
 
     const repoName = repo;
     const branchName = branch || 'main';
-    const analysisQuestion = questionPrompt ;
+    const analysisQuestion = questionPrompt;
 
     console.log(`Starting analysis for repository: ${repoName}, branch: ${branchName}`);
 

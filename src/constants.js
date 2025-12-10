@@ -34,8 +34,8 @@ JSON SCHEMA (STRICT — DO NOT MODIFY THE STRUCTURE):
     "parsed_at": "<ISO date>",
     "total_nodes_found": "number",
     "processed_nodes": "number",
-    "repo": "${repo}",
-    "branch": "${branch}"
+    "repo": "repo",
+    "branch": "branch"
   }
 }
 

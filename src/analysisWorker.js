@@ -173,7 +173,7 @@ class AnalysisWorker {
     if (job) {
       // Step 5: Emit final result
       const room = `project_${project_id}`;
-      
+
       this.emitJobUpdate(project_id, 'finished', 'Job finished');
 
       this.io.to(room).emit('analysis_complete', {
