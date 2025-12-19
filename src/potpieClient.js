@@ -11,7 +11,7 @@ class PotpieClient {
                 'x-api-key': this.apiKey,
                 'Content-Type': 'application/json',
             },
-            timeout: 60000, // 60 seconds timeout for parsing operations
+            timeout: 300000, // 5 mins timeout for parsing operations
         });
     }
 
