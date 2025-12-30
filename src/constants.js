@@ -11,6 +11,10 @@ STRICT OUTPUT RULES (DO NOT VIOLATE)
 - snippets_count MUST equal snippets.length.
 - parsed_at MUST be an ISO-8601 timestamp (e.g., 2025-12-19T12:34:56Z).
 - Use null / [] / {} when unknown; never write commentary outside JSON.
+- MAX_SNIPPET_LINES: 80 (prefer 30–60).
+- TARGET_FILES_COVERED: at least 15 distinct file_path.
+- TARGET_SNIPPETS: 30 (or as many as possible within budget).
+- Never include more than 3 snippets from the same file unless it's an entrypoint.
 
 SELECTION POLICY (VERY IMPORTANT)
 You cannot include the entire repository. You MUST prioritize high-impact code:
@@ -20,6 +24,13 @@ You cannot include the entire repository. You MUST prioritize high-impact code:
 - external integrations (HTTP clients, queues, payments, auth)
 - shared types/interfaces, configuration, env handling
 - build/deploy scripts only if they affect runtime behavior
+You MUST select snippets to satisfy this minimum coverage:
+- entrypoints: >= 2 files
+- routing/controllers: >= 3 files
+- core services/use-cases: >= 5 files
+- data-access/models/migrations: >= 4 files
+- integrations (HTTP/queue/auth): >= 3 files
+- config/env handling: >= 2 files
 
 SNIPPET QUALITY RULES
 For each snippet:
