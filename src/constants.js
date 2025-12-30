@@ -25,12 +25,14 @@ SNIPPET QUALITY RULES
 For each snippet:
 - code MUST be a verbatim excerpt from the repository content.
 - line_start/line_end MUST match the excerpt location in the file.
-- node_id MUST be stable and unique. Use this format:
-  "<file_path>:<line_start>-<line_end>"
+- node_id MUST be EXACTLY: "<file_path>:<line_start>-<line_end>" (no hashes, no UUID, no other formats)
 - tags MUST be 2–6 short labels from this controlled set when applicable:
   ["entrypoint","routing","controller","service","domain","data-access","model","migration",
    "auth","config","integration","queue","test","util","type","error-handling","build"]
 - description should be 1–2 sentences, or null if obvious.
+- code MUST NOT contain "..." or "{...}" or "[...]" or any ellipsis/placeholder.
+- code MUST be EXACT contiguous lines copied verbatim from the repository file.
+- If you cannot include verbatim code, you MUST return code: null for that snippet and explain the limitation in description.
 
 EVIDENCE RULE
 analysis_response must only assert things that are supported by at least one snippet.
@@ -122,4 +124,6 @@ FINAL SELF-CHECK (DO THIS SILENTLY BEFORE OUTPUT)
 - No placeholders remain (repo/branch/number/ISO date replaced with real values or null).
 - snippets_count matches snippets.length.
 - Every non-trivial claim in analysis_response has evidence_node_ids.
+- If ANY snippet.code contains "..." or "{...}" or "[...]", the output is INVALID; regenerate with fewer lines per snippet until valid.
+- If ANY node_id is not in the required format, output is INVALID; fix node_ids.
 `
