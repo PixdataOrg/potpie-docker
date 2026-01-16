@@ -97,7 +97,7 @@ class AnalysisWorker {
 
           // 🧩 Step 1: Wait for parsing to complete
           console.log(`🔄 [WORKER] Waiting for parsing to complete...`);
-          const parsingResult = await this.potpieClient.waitForParsingComplete(project_id, 1800000, this.io, true);
+          const parsingResult = await this.potpieClient.waitForParsingComplete(project_id, 3600000, this.io, true);
 
           if (!parsingResult.success) {
               throw new Error(`Parsing failed: ${JSON.stringify(parsingResult.error.details)}`);
