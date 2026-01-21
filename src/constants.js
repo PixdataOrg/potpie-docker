@@ -13,7 +13,8 @@ STRICT OUTPUT RULES (DO NOT VIOLATE)
 - Use null / [] / {} when unknown; never write commentary outside JSON.
 - MAX_SNIPPET_LINES: 80 (prefer 30–60).
 - TARGET_FILES_COVERED: at least 15 distinct file_path.
-- TARGET_SNIPPETS: 30 (or as many as possible within budget).
+- There must be at least 3 snippets and a related "analysis_response" on them
+- TARGET_SNIPPETS: 10 (or as many as possible within budget).
 - Never include more than 3 snippets from the same file unless it's an entrypoint.
 
 SELECTION POLICY (VERY IMPORTANT)
