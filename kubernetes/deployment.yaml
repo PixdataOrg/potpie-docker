@@ -61,6 +61,16 @@ spec:
                 secretKeyRef:
                   name: potpie-secrets
                   key: REDIS_PASSWORD
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: potpie-secrets
+                  key: LANGFUSE_SECRET_KEY
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: potpie-secrets
+                  key: LANGFUSE_PUBLIC_KEY
           envFrom:
             - configMapRef:
                 name: potpie-config
