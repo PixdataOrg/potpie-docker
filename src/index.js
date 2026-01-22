@@ -8,7 +8,7 @@ const { Queue } = require('bullmq');
 const { getBullMQConnection, testRedisConnection } = require('./redisConfig');
 const AnalysisWorker = require('./analysisWorker');
 const PotpieClient = require('./potpieClient');
-const { createTrace, flushLangfuse } = require('./langfuseClient');
+const { createTrace, flushLangfuse, langfuseClient } = require('./langfuseClient');
 
 // Prometheus metrics
 const promClient = require('prom-client');
@@ -618,6 +618,7 @@ async function startServer() {
       console.log(`🔍 Analysis endpoint: http://localhost:${PORT}/analyze`);
       console.log(`📈 Queue stats: http://localhost:${PORT}/queue/stats`);
       console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/`);
+      console.log(`📊 Langfuse tracing listening on ${langfuseClient.baseUrl}`)
       
       if (!process.env.POTPIE_API_KEY) {
         console.warn('⚠️  WARNING: POTPIE_API_KEY environment variable not set!');
