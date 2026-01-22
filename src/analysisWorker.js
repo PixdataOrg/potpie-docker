@@ -1,6 +1,7 @@
 const { Worker } = require('bullmq');
 const { getBullMQConnection } = require('./redisConfig');
 const PotpieClient = require('./potpieClient');
+const { createTrace, flushLangfuse } = require('./langfuseClient');
 
 /**
  * BullMQ Worker for processing repository analysis jobs
@@ -90,18 +91,55 @@ class AnalysisWorker {
   async processJob(job) {
       const { project_id, repo, branch, question, github_token } = job.data;
       const room = `project_${project_id}`;
+      const trace = createTrace({
+          name: 'potpie_process_job',
+          input: { project_id, repo, branch, job_id: job.id },
+          metadata: { stage: 'job_received' },
+      });
 
       try {
           console.log(`🔄 [WORKER] Processing job ${job.id} for project ${project_id}`);
           this.emitJobUpdate(project_id, 'parsing', 'Repository parsing in progress...');
+
+          trace?.update({
+              metadata: { stage: 'parsing_wait_start' },
+          });
 
           // 🧩 Step 1: Wait for parsing to complete
           console.log(`🔄 [WORKER] Waiting for parsing to complete...`);
           const parsingResult = await this.potpieClient.waitForParsingComplete(project_id, 3600000, this.io, true);
 
           if (!parsingResult.success) {
-              throw new Error(`Parsing failed: ${JSON.stringify(parsingResult.error.details)}`);
+              const errorDetails = parsingResult.error || {};
+              const timeoutStatuses = ['timeout'];
+              const isTimeoutStatus = timeoutStatuses.includes(errorDetails.details?.status);
+              const isTimeoutCode = errorDetails.status === 408;
+              const isTimeoutMessage = (errorDetails.message || '').toLowerCase().includes('timeout');
+              const isTimeout = isTimeoutStatus || isTimeoutCode || isTimeoutMessage;
+
+              if (isTimeout && typeof job.discard === 'function') {
+                  // Avoid retrying jobs that already hit the parsing timeout
+                  job.discard();
+                  console.warn(`⏱️ [WORKER] Parsing timed out for project ${project_id}. Discarding retries for job ${job.id}.`);
+              }
+
+              trace?.update({
+                  level: 'ERROR',
+                  statusMessage: errorDetails.message,
+                  metadata: {
+                      stage: 'parsing_failed',
+                      project_id,
+                      job_id: job.id,
+                      error_status: errorDetails.status,
+                  },
+              });
+
+              throw new Error(`Parsing failed: ${JSON.stringify(errorDetails.details) || errorDetails.message}`);
           }
+
+          trace?.update({
+              metadata: { stage: 'parsing_complete' },
+          });
 
           this.emitJobUpdate(project_id, 'ready', 'Parsing completed. Starting knowledge extraction...');
 
@@ -110,7 +148,19 @@ class AnalysisWorker {
           const response = await this.potpieClient.sendMessage(project_id, question);
 
           // 🧾 Step 4: Process agent output
-          return this.processResponse(project_id, response, repo, branch, job);
+          const result = this.processResponse(project_id, response, repo, branch, job);
+
+          trace?.update({
+              metadata: { stage: 'analysis_complete' },
+              output: {
+                  project_id,
+                  repo,
+                  branch,
+                  snippets_count: result?.snippets_count,
+              },
+          });
+
+          return result;
       } catch (error) {
           console.error(`❌ [WORKER] Error processing analysis for project ${project_id}:`, error);
 
@@ -122,7 +172,15 @@ class AnalysisWorker {
               timestamp: new Date().toISOString()
           });
 
+          trace?.update({
+              level: 'ERROR',
+              statusMessage: error.message,
+              metadata: { stage: 'job_failed', project_id, job_id: job.id },
+          });
+
           throw error;
+      } finally {
+          await flushLangfuse();
       }
   }
 

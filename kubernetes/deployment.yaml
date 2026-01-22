@@ -16,6 +16,10 @@ data:
   LOG_LEVEL: "info"
   REQUEST_TIMEOUT: "30000"
   CUSTOM_AGENT_ID: "fe5f00ae-6737-4953-8fb6-8b71153da4eb"
+  LANGFUSE_PUBLIC_KEY: "pk-lf-bd7f2528-484f-47dc-9677-d38f5aac6dcc"
+  LANGFUSE_SECRET_KEY: "sk-lf-4c8328d1-1e68-4422-ad6f-72e5684dcac6"
+  LANGFUSE_BASEURL: "https://cloud.langfuse.com"
+  LANGFUSE_ENVIRONMENT: "development"
 ---
 apiVersion: apps/v1
 kind: Deployment

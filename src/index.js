@@ -8,6 +8,7 @@ const { Queue } = require('bullmq');
 const { getBullMQConnection, testRedisConnection } = require('./redisConfig');
 const AnalysisWorker = require('./analysisWorker');
 const PotpieClient = require('./potpieClient');
+const { createTrace, flushLangfuse } = require('./langfuseClient');
 
 // Prometheus metrics
 const promClient = require('prom-client');
@@ -167,11 +168,22 @@ app.post('/sendMessage', async (req, res) => {
 
 // Repository analysis endpoint - Uses BullMQ Queue
 app.post('/analyze', async (req, res) => {
+  const requestTrace = createTrace({
+    name: 'potpie_analyze_request',
+    input: req.body,
+    metadata: { stage: 'request_received' },
+  });
+
   try {
     const { repo, branch, github_token } = req.body;
 
     // Validate required parameters
     if (!repo) {
+      requestTrace?.update({
+        level: 'ERROR',
+        statusMessage: 'Missing repo parameter',
+        metadata: { stage: 'validation_failed' },
+      });
       return res.status(400).json({
         error: 'Missing required parameter: repo',
         example: {
@@ -183,6 +195,11 @@ app.post('/analyze', async (req, res) => {
     }
 
     if (!analysisQueue) {
+      requestTrace?.update({
+        level: 'ERROR',
+        statusMessage: 'Queue not initialized',
+        metadata: { stage: 'queue_unavailable' },
+      });
       return res.status(503).json({
         error: 'Analysis queue not initialized',
         message: 'Service is starting up, please try again in a moment',
@@ -194,12 +211,31 @@ app.post('/analyze', async (req, res) => {
     const branchName = branch || 'main';
     const analysisQuestion = questionPrompt;
 
+    requestTrace?.update({
+      metadata: {
+        stage: 'validated',
+        repo: repoName,
+        branch: branchName,
+        queue: queueName,
+      },
+    });
+
     console.log(`Starting analysis for repository: ${repoName}, branch: ${branchName}`);
 
     // Step 1: Initiate repository parsing with Potpie
     const parseResult = await potpieClient.parseRepository(repoName, branchName, github_token);
     
     if (!parseResult.success) {
+      requestTrace?.update({
+        level: 'ERROR',
+        statusMessage: parseResult.error.message,
+        metadata: {
+          stage: 'parse_start_failed',
+          repo: repoName,
+          branch: branchName,
+          errorStatus: parseResult.error.status,
+        },
+      });
       return res.status(parseResult.error.status || 500).json({
         success: false,
         error: 'Failed to initiate repository parsing',
@@ -235,6 +271,20 @@ app.post('/analyze', async (req, res) => {
       }
     );
 
+    requestTrace?.update({
+      metadata: {
+        stage: 'job_queued',
+        projectId,
+        jobId: job.id,
+        attempts: maxRetries,
+      },
+      output: {
+        project_id: projectId,
+        job_id: job.id,
+        status: 'queued',
+      },
+    });
+
     console.log(`Job ${job.id} added to queue for project ${projectId}`);
 
     // Step 3: Emit initial queued status
@@ -260,12 +310,19 @@ app.post('/analyze', async (req, res) => {
 
   } catch (error) {
     console.error('Analysis endpoint error:', error);
+    requestTrace?.update({
+      level: 'ERROR',
+      statusMessage: error.message,
+      metadata: { stage: 'analyze_endpoint_error' },
+    });
     res.status(500).json({
       success: false,
       error: 'Internal server error during analysis initiation',
       message: error.message,
       timestamp: new Date().toISOString()
     });
+  } finally {
+    await flushLangfuse();
   }
 });
 
